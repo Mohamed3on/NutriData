@@ -6,7 +6,7 @@
   "permissions": ["storage"],
   "content_scripts": [
     {
-      "matches": ["*://shop.rewe.de/productList*"],
+      "matches": ["*://shop.rewe.de/productList*", "*://shop.rewe.de/p/*", "*://shop.rewe.de/c/*"],
       "run_at": "document_idle",
       "js": ["src/search"]
     },
