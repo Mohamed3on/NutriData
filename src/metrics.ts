@@ -7,7 +7,9 @@ export function calculateMetrics(
   const proteinGramsPer100g = parseFloat(nutrientInfo.protein);
   const { price, weight, pricePerKg } = priceAndWeightInfo;
   const carbGrams = parseFloat(nutrientInfo.carbs);
-  const calories = parseFloat(nutrientInfo.calories);
+
+  // Handle calories by keeping only numbers, removing decimal points
+  const calories = parseInt(nutrientInfo.calories.replace(/[^\d]/g, ''), 10);
 
   let proteinPerEuro = 'N/A';
   if (weight) {
