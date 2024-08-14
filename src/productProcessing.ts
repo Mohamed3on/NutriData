@@ -5,6 +5,13 @@ import { getCachedData, setCachedData } from './cacheUtils';
 import { fetchProductData, createMetricsElement } from './domUtils';
 
 export async function processProductCard(card: Element): Promise<void> {
+  // Check if the metrics element already exists
+  const existingMetricsElement = card.querySelector('.nutri-data-metrics');
+  if (existingMetricsElement) {
+    console.log('Metrics element already exists for this card');
+    return;
+  }
+
   const link = card.querySelector('a.search-service-productDetailsLink');
   if (!link) return;
 
@@ -42,23 +49,27 @@ export async function processProductCard(card: Element): Promise<void> {
     });
   }
 
-  const metricsElement = createMetricsElement(metrics);
+  if (metrics) {
+    const metricsElement = createMetricsElement(metrics);
 
-  // Find the correct insertion point within the card
-  const detailsWrapper = card.querySelector('.search-service-productDetailsWrapper');
-  const grammageElement = detailsWrapper?.querySelector('.search-service-productGrammage');
+    // Find the correct insertion point within the card
+    const detailsWrapper = card.querySelector('.search-service-productDetailsWrapper');
+    const grammageElement = detailsWrapper?.querySelector('.search-service-productGrammage');
 
-  // Set the height of ProductDetailsWrapper_productDetails__7vI_z to auto
-  const productDetails = card.querySelector('.ProductDetailsWrapper_productDetails__7vI_z');
-  if (productDetails instanceof HTMLElement) {
-    productDetails.style.height = 'auto';
-  }
+    // Set the height of ProductDetailsWrapper_productDetails__7vI_z to auto
+    const productDetails = card.querySelector('.ProductDetailsWrapper_productDetails__7vI_z');
+    if (productDetails instanceof HTMLElement) {
+      productDetails.style.height = 'auto';
+    }
 
-  if (grammageElement && grammageElement.parentNode) {
-    grammageElement.parentNode.insertBefore(metricsElement, grammageElement.nextSibling);
-  } else if (detailsWrapper) {
-    // Fallback: append to detailsWrapper if grammageElement is not found
-    detailsWrapper.appendChild(metricsElement);
+    if (grammageElement && grammageElement.parentNode) {
+      grammageElement.parentNode.insertBefore(metricsElement, grammageElement.nextSibling);
+    } else if (detailsWrapper) {
+      // Fallback: append to detailsWrapper if grammageElement is not found
+      detailsWrapper.appendChild(metricsElement);
+    }
+  } else {
+    console.warn('Unable to calculate metrics for product card:', card);
   }
 
   // Adjust the height of the product card

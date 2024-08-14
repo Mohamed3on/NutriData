@@ -8,7 +8,7 @@ export async function fetchProductData(url: string): Promise<Document> {
   return parser.parseFromString(html, 'text/html');
 }
 
-export function createMetricsElement(metrics: Metrics): HTMLElement {
+export function createMetricsElement(metrics: Metrics | null | undefined): HTMLElement {
   const metricsElement = document.createElement('div');
   metricsElement.className = 'nutri-data-metrics';
   metricsElement.style.cssText = `
@@ -22,17 +22,26 @@ export function createMetricsElement(metrics: Metrics): HTMLElement {
     color: #333;
   `;
 
+  // Check if metrics is null or undefined
+  if (!metrics) {
+    return metricsElement;
+  }
+
+  // Add data attributes for each metric
+  Object.entries(metrics).forEach(([key, value]) => {
+    metricsElement.setAttribute(`data-${key}`, value);
+  });
+
   const labelMap: Record<keyof Metrics, string> = {
-    proteinPerEuro: 'Protein g per €',
+    proteinPerEuro: 'Protein per €',
     proteinToCarbRatio: 'Protein to Carb Ratio',
-    proteinPer100Calories: 'Protein g per 100 calories',
+    proteinPer100Calories: 'Protein per 100 calories',
   };
 
-  // Define the order of metrics
   const metricOrder: (keyof Metrics)[] = [
     'proteinPerEuro',
-    'proteinToCarbRatio',
     'proteinPer100Calories',
+    'proteinToCarbRatio',
   ];
 
   metricsElement.innerHTML = metricOrder
@@ -54,4 +63,37 @@ export function createMetricsElement(metrics: Metrics): HTMLElement {
     .join('');
 
   return metricsElement;
+}
+
+export function createCustomSortSelect(onSort: (metric: keyof Metrics) => void): HTMLSelectElement {
+  const customSelect = document.createElement('select');
+  customSelect.className = 'Select_rsSelect__qwGEE Select_rsSelectText__U_NgU nutri-data-sort';
+  customSelect.style.marginLeft = '10px';
+
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = 'Sort by Nutrient Metrics';
+  customSelect.appendChild(defaultOption);
+
+  const metricOptions: [keyof Metrics, string][] = [
+    ['proteinPerEuro', 'Protein per Euro'],
+    ['proteinToCarbRatio', 'Protein to Carb Ratio'],
+    ['proteinPer100Calories', 'Protein per 100 Calories'],
+  ];
+
+  metricOptions.forEach(([metric, label]) => {
+    const option = document.createElement('option');
+    option.value = metric;
+    option.textContent = label;
+    customSelect.appendChild(option);
+  });
+
+  customSelect.addEventListener('change', (event) => {
+    const selectedValue = (event.target as HTMLSelectElement).value as keyof Metrics;
+    if (selectedValue) {
+      onSort(selectedValue);
+    }
+  });
+
+  return customSelect;
 }
