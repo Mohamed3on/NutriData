@@ -29,3 +29,9 @@ export interface Shop {
   getPriceAndWeightInfo: (doc: Document) => PriceAndWeightInfo;
   getInsertionPoint: (element: HTMLElement) => HTMLElement | null;
 }
+
+export interface CachedData {
+  nutrientInfo: NutrientInfo;
+  metrics: Metrics;
+  timestamp: number;
+}
