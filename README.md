@@ -1,4 +1,7 @@
 # Nutrition Data Chrome Extension
+![CleanShot 2024-08-14 at 10  58 02@2x](https://github.com/user-attachments/assets/fab77d69-34c4-49aa-8fe5-7313281ada70)
+
+![CleanShot 2024-08-14 at 10  58 28@2x](https://github.com/user-attachments/assets/c3a4c3e2-ce8b-4d33-b2be-2b910a441d32)
 
 This Chrome extension enhances online shopping experiences by providing additional nutritional information and metrics for food products on supported e-commerce platforms.
 
