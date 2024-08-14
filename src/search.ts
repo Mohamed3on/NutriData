@@ -1,7 +1,36 @@
-import { Metrics } from './types';
+import { Metrics, NutrientInfo } from './types';
 import { COLOR_THRESHOLDS, getColorForValue, formatLabel } from './utils';
 import { calculateMetrics } from './metrics';
 import { reweShop } from './shops/rewe';
+
+declare const chrome: any;
+
+interface CachedData {
+  nutrientInfo: NutrientInfo;
+  metrics: Metrics;
+  timestamp: number;
+}
+
+const CACHE_EXPIRATION = 90 * 24 * 60 * 60 * 1000; // 90 days (3 months) in milliseconds
+
+async function getCachedData(url: string): Promise<CachedData | null> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(url, (result: { [key: string]: any }) => {
+      const cachedData = result[url] as CachedData | undefined;
+      if (cachedData && Date.now() - cachedData.timestamp < CACHE_EXPIRATION) {
+        resolve(cachedData);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+async function setCachedData(url: string, data: CachedData): Promise<void> {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [url]: data }, resolve);
+  });
+}
 
 async function fetchProductData(url: string): Promise<Document> {
   const response = await fetch(url);
@@ -37,7 +66,9 @@ function createMetricsElement(metrics: Metrics): HTMLElement {
         value,
         COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
       )}">
-        ${value}${key === 'proteinPerEuro' && value !== 'N/A' ? 'g' : ''}
+        ${value}${key === 'proteinPerEuro' && value !== 'N/A' ? 'g' : ''}${
+        key === 'proteinPer100Calories' && value !== 'N/A' ? 'g' : ''
+      }
       </span>
     </div>
   `
@@ -52,18 +83,38 @@ async function processProductCard(card: Element): Promise<void> {
   if (!link) return;
 
   const url = (link as HTMLAnchorElement).href;
-  const doc = await fetchProductData(url);
 
-  const nutrientInfo = reweShop.getNutrientInfo(doc);
+  // Try to get cached data
+  const cachedData = await getCachedData(url);
 
-  // Break early if nutrient info is not available
-  if (!nutrientInfo || Object.values(nutrientInfo).every((value) => value === '')) {
-    console.log('Nutrient information not available for this product');
-    return;
+  let nutrientInfo: NutrientInfo;
+  let metrics: Metrics;
+
+  if (cachedData) {
+    // Use cached data if available
+    nutrientInfo = cachedData.nutrientInfo;
+    metrics = cachedData.metrics;
+  } else {
+    // Fetch and process data if not cached
+    const doc = await fetchProductData(url);
+    nutrientInfo = reweShop.getNutrientInfo(doc);
+
+    // Break early if nutrient info is not available
+    if (!nutrientInfo || Object.values(nutrientInfo).every((value) => value === '')) {
+      console.log('Nutrient information not available for this product');
+      return;
+    }
+
+    const priceAndWeightInfo = reweShop.getPriceAndWeightInfo(doc);
+    metrics = calculateMetrics(nutrientInfo, priceAndWeightInfo);
+
+    // Cache the new data
+    await setCachedData(url, {
+      nutrientInfo,
+      metrics,
+      timestamp: Date.now(),
+    });
   }
-
-  const priceAndWeightInfo = reweShop.getPriceAndWeightInfo(doc);
-  const metrics = calculateMetrics(nutrientInfo, priceAndWeightInfo);
 
   const metricsElement = createMetricsElement(metrics);
 
@@ -104,5 +155,44 @@ async function processAllProductCards(): Promise<void> {
   await Promise.allSettled(promises);
 }
 
+// New function to set up the MutationObserver
+function setupMutationObserver(): void {
+  const targetNode = document.querySelector('.ProductList_rsPageableProductListWrapper__v1cS_');
+  if (!targetNode) {
+    console.error('Target node for MutationObserver not found');
+    return;
+  }
+
+  const observerOptions = {
+    childList: true,
+    subtree: true,
+  };
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList') {
+        mutation.addedNodes.forEach((node) => {
+          if (node instanceof HTMLElement && node.classList.contains('search-service-product')) {
+            processProductCard(node).catch((error) =>
+              console.error('Error processing dynamically added product card:', error)
+            );
+          }
+        });
+      }
+    });
+  });
+
+  observer.observe(targetNode, observerOptions);
+}
+
 // Run the script
-processAllProductCards().catch((error) => console.error('Error processing product cards:', error));
+async function main() {
+  try {
+    await processAllProductCards();
+    setupMutationObserver();
+  } catch (error) {
+    console.error('Error in main function:', error);
+  }
+}
+
+main();
