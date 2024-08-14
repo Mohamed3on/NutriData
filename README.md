@@ -36,6 +36,13 @@ This Chrome extension enhances online shopping experiences by providing addition
 
 ## Installation
 
+### Option 1: Chrome Web Store
+
+1. Visit the [NutriData Chrome Web Store page](https://chromewebstore.google.com/detail/nutridata-product-nutriti/pkgppeffgmpdjldplgbplbfcmckjemao?authuser=0&hl=en).
+2. Click on "Add to Chrome" to install the extension directly from the Chrome Web Store.
+
+### Option 2: Manual Installation (for developers)
+
 1. Clone this repository or download the source code.
 2. Open Chrome and navigate to `chrome://extensions/`.
 3. Enable "Developer mode" in the top right corner.
