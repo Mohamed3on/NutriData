@@ -1,5 +1,6 @@
 import { ColorThresholds } from './types';
 
+// source: i made them up
 export const COLOR_THRESHOLDS: Record<string, ColorThresholds> = {
   proteinPerEuro: { good: 12, bad: 4 },
   proteinToCarbRatio: { good: 2, bad: 0.1 },

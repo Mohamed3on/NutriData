@@ -33,7 +33,9 @@ export function createInfoElement(nutrientInfo: NutrientInfo, metrics: Metrics):
           value,
           COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
         )}">
-          ${value}${key === 'proteinPerEuro' && value !== 'N/A' ? 'g/€' : ''}
+          ${value}${key === 'proteinPerEuro' && value !== 'N/A' ? 'g/€' : ''}${
+          key === 'proteinPer100Calories' && value !== 'N/A' ? 'g' : ''
+        }
         </span>
       </p>
     `
