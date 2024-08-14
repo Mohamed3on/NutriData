@@ -18,12 +18,15 @@ This Chrome extension enhances online shopping experiences by providing addition
 - Color-coded metrics for quick assessment (red to green)
 
 ### Search Results Page
+ ![CleanShot 2024-08-14 at 3  43 41@2x](https://github.com/user-attachments/assets/3f5c520d-c157-4ba4-8ddc-1ab037d0dca7)
+
 
 - Adds nutritional metrics to each product card
 - Provides custom sorting options based on nutritional metrics:
   - Sort by protein per euro
   - Sort by protein per 100 calories
   - Sort by protein to carb ratio
+ 
 - Dynamically updates metrics for newly loaded products when changing the sort option
 
 ### General
