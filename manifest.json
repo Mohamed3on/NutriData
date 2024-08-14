@@ -6,9 +6,15 @@
 
   "content_scripts": [
     {
-      "matches": ["*://shop.rewe.de/*"],
+      "matches": ["*://shop.rewe.de/productList*"],
       "run_at": "document_idle",
-      "js": ["src/main.js"]
+      "js": ["src/search.ts"]
+    },
+    {
+      "matches": ["*://shop.rewe.de/p/*", "*://shop.rewe.de/products/*"],
+      "exclude_matches": ["*://shop.rewe.de/productList*"],
+      "run_at": "document_idle",
+      "js": ["src/main.ts"]
     }
   ]
 }
