@@ -1,82 +1,81 @@
-# NutriData Chrome Extension
+# 🥗 NutriData Chrome Extension
 
-![CleanShot 2024-08-15 at 10  36 03@2x](https://github.com/user-attachments/assets/dbbe4cc6-68d5-4631-9cc4-dc754a022e7b)
+![Product Page Screenshot](https://github.com/user-attachments/assets/dbbe4cc6-68d5-4631-9cc4-dc754a022e7b)
 
+![Product Page Screenshot](https://github.com/user-attachments/assets/98e4eab6-a49b-4a72-a1b1-5651356094ae)
 
-![CleanShot 2024-08-15 at 10  36 27@2x](https://github.com/user-attachments/assets/98e4eab6-a49b-4a72-a1b1-5651356094ae)
+**Enhance your online grocery shopping with instant nutritional insights!**
 
+## 🎯 Motivation
 
-This Chrome extension enhances online shopping experiences by providing additional nutritional information and metrics for food products on supported e-commerce platforms.
+Ever struggled to make healthy choices while shopping online? NutriData is here to help! We empower consumers by presenting clear, easily comparable nutritional information right on product pages and search results.
 
-## Features
+## ⚠️ Development Status
+
+**Active development in progress!** The Chrome Web Store version may lag behind due to review processes. For the latest features, grab the GitHub version.
+
+## ✨ Features
 
 ### Product Page
 
-- Displays key nutritional metrics:
-  - Protein per euro (g/€)
-  - Protein per 100 calories (g)
-  - Protein to carb ratio
-- Shows detailed nutritional information in an easy-to-read format
-- Color-coded metrics for quick assessment (red to green)
+- **Key nutritional metrics:**
+  - 💪 Protein per euro (g/€)
+  - 🔥 Protein per 100 calories (g)
+  - 🍞 Protein to carb ratio
+- Detailed nutritional info in an easy-to-read format
+- Color-coded metrics for quick assessment (🔴 to 🟢)
 
 ### Search Results Page
-![CleanShot 2024-08-15 at 10  35 28@2x](https://github.com/user-attachments/assets/4fd39372-6287-4f0c-8842-76aa2bd47697)
 
+![Search Results with Metrics](https://github.com/user-attachments/assets/4fd39372-6287-4f0c-8842-76aa2bd47697)
 
-
-- Adds nutritional metrics to each product card
-- Provides custom sorting options based on nutritional metrics:
-  - Sort by protein per euro
-  - Sort by protein per 100 calories
-  - Sort by protein to carb ratio
- 
-- Dynamically updates metrics for newly loaded products when changing the sort option
+- Nutritional metrics added to each product card
+- **Custom sorting options:**
+  - Protein per euro (High to Low)
+  - Protein per 100 calories (High to Low)
+  - Protein to carb ratio (High to Low)
+  - Protein, Carbs, Fat (High to Low)
+  - Sugar, Calories (Low to High)
+- Dynamic updates for newly loaded products
 
 ### General
 
-- Caches product data to reduce API calls and improve performance
-- Currently supports REWE online shop (shop.rewe.de)
+- 🚀 Performance-boosting data caching
+- 🛒 Currently supports REWE online shop (shop.rewe.de)
+- 📊 Clear separation of "Protein Content Analysis" and "Nutrients per 100g"
 
-## Installation
+## 🚀 Installation
 
-### Option 1: Chrome Web Store
+### Option 1: Chrome Web Store (Stable)
 
-1. Visit the [NutriData Chrome Web Store page](https://chromewebstore.google.com/detail/nutridata-product-nutriti/pkgppeffgmpdjldplgbplbfcmckjemao?authuser=0&hl=en).
-2. Click on "Add to Chrome" to install the extension directly from the Chrome Web Store.
+1. Visit the [NutriData Chrome Web Store page](https://chromewebstore.google.com/detail/nutridata-product-nutriti/pkgppeffgmpdjldplgbplbfcmckjemao?authuser=0&hl=en)
+2. Click "Add to Chrome"
 
-### Option 2: Manual Installation (for developers)
+### Option 2: Manual Installation (Latest Features)
 
-1. Clone this repository or download the source code.
-2. Open Chrome and navigate to `chrome://extensions/`.
-3. Enable "Developer mode" in the top right corner.
-4. Click "Load unpacked" and select the directory containing the extension files.
+1. Clone this repo or download the source code
+2. Open Chrome and go to `chrome://extensions/`
+3. Enable "Developer mode" (top right)
+4. Click "Load unpacked" and select the extension directory
 
-## Usage
+## 🛠 Usage
 
-1. Visit a supported online shop (currently shop.rewe.de).
-2. Browse product pages or search results to see nutritional metrics.
-3. Use the custom sort options on search results pages to find products that best meet your nutritional goals.
+1. Visit shop.rewe.de (more shops coming soon!)
+2. Browse products or search results
+3. Use custom sort options to find your perfect nutritional match
 
-## Customization
+## 🔧 Customization
 
-You can customize the extension by modifying the following:
+Tweak the extension by modifying:
 
-- `src/utils.ts`: Adjust `COLOR_THRESHOLDS` for each metric to change the color-coding logic.
-- `src/shops/rewe.ts`: Modify `NUTRIENT_LABELS` to update or add new nutrient labels.
-- `src/domUtils.ts`: Customize the UI elements and styling of the displayed metrics.
+- `src/utils.ts`: Adjust `COLOR_THRESHOLDS` for metric color-coding
+- `src/shops/rewe.ts`: Update `NUTRIENT_LABELS`
+- `src/domUtils.ts`: Customize UI elements and styling
 
-## Adding Support for New Shops
+## 🤝 Contributing
 
-To add support for a new online shop:
+Contributions are welcome! Feel free to submit a Pull Request.
 
-1. Create a new file in the `src/shops/` directory for the new shop.
-2. Implement the `Shop` interface for the new shop, including methods to extract nutritional information and price/weight data.
-3. Update the `shops` array in `src/main.ts` to include the new shop.
+## 📄 License
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is open source and available under the [MIT License](LICENSE).
+This project is open source under the [MIT License](LICENSE).
