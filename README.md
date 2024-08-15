@@ -1,8 +1,10 @@
 # NutriData Chrome Extension
 
-![CleanShot 2024-08-14 at 10  58 02@2x](https://github.com/user-attachments/assets/fab77d69-34c4-49aa-8fe5-7313281ada70)
+![CleanShot 2024-08-15 at 10  36 03@2x](https://github.com/user-attachments/assets/dbbe4cc6-68d5-4631-9cc4-dc754a022e7b)
 
-![CleanShot 2024-08-14 at 10  58 28@2x](https://github.com/user-attachments/assets/c3a4c3e2-ce8b-4d33-b2be-2b910a441d32)
+
+![CleanShot 2024-08-15 at 10  36 27@2x](https://github.com/user-attachments/assets/98e4eab6-a49b-4a72-a1b1-5651356094ae)
+
 
 This Chrome extension enhances online shopping experiences by providing additional nutritional information and metrics for food products on supported e-commerce platforms.
 
@@ -18,7 +20,8 @@ This Chrome extension enhances online shopping experiences by providing addition
 - Color-coded metrics for quick assessment (red to green)
 
 ### Search Results Page
- ![CleanShot 2024-08-14 at 3  43 41@2x](https://github.com/user-attachments/assets/3f5c520d-c157-4ba4-8ddc-1ab037d0dca7)
+![CleanShot 2024-08-15 at 10  35 28@2x](https://github.com/user-attachments/assets/4fd39372-6287-4f0c-8842-76aa2bd47697)
+
 
 
 - Adds nutritional metrics to each product card
