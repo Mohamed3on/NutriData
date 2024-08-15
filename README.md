@@ -1,4 +1,4 @@
-# 🥗 NutriData Chrome Extension
+# 🥗 NutriData Extension
 
 ![Product Page Screenshot](https://github.com/user-attachments/assets/dbbe4cc6-68d5-4631-9cc4-dc754a022e7b)
 
