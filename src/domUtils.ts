@@ -1,4 +1,4 @@
-import { Metrics } from './types';
+import { Metrics, NutrientInfo } from './types';
 import { COLOR_THRESHOLDS, getColorForValue } from './utils';
 
 export async function fetchProductData(url: string): Promise<Document> {
@@ -8,7 +8,10 @@ export async function fetchProductData(url: string): Promise<Document> {
   return parser.parseFromString(html, 'text/html');
 }
 
-export function createMetricsElement(metrics: Metrics | null | undefined): HTMLElement {
+export function createMetricsElement(
+  metrics: Metrics | null | undefined,
+  nutrientInfo: NutrientInfo | null | undefined
+): HTMLElement {
   const metricsElement = document.createElement('div');
   metricsElement.className = 'nutri-data-metrics';
   metricsElement.style.cssText = `
@@ -22,13 +25,15 @@ export function createMetricsElement(metrics: Metrics | null | undefined): HTMLE
     color: #333;
   `;
 
-  // Check if metrics is null or undefined
-  if (!metrics) {
+  if (!metrics || !nutrientInfo) {
     return metricsElement;
   }
 
-  // Add data attributes for each metric
+  // Add data attributes for each metric and nutrient
   Object.entries(metrics).forEach(([key, value]) => {
+    metricsElement.setAttribute(`data-${key}`, value);
+  });
+  Object.entries(nutrientInfo).forEach(([key, value]) => {
     metricsElement.setAttribute(`data-${key}`, value);
   });
 
@@ -44,28 +49,49 @@ export function createMetricsElement(metrics: Metrics | null | undefined): HTMLE
     'proteinToCarbRatio',
   ];
 
-  metricsElement.innerHTML = metricOrder
-    .map(
-      (key) => `
-    <div>
-      ${labelMap[key]}:
-      <span style="font-weight: bold; color: ${getColorForValue(
-        metrics[key],
-        COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
-      )}">
-        ${metrics[key]}${key === 'proteinPerEuro' && metrics[key] !== 'N/A' ? 'g' : ''}${
-        key === 'proteinPer100Calories' && metrics[key] !== 'N/A' ? 'g' : ''
-      }
-      </span>
-    </div>
-  `
-    )
-    .join('');
+  const nutrientOrder: (keyof NutrientInfo)[] = ['protein', 'carbs', 'fat', 'sugar', 'calories'];
+
+  metricsElement.innerHTML = `
+    <div style="font-weight: bold; margin-bottom: 5px;">Protein Content Analysis</div>
+    ${metricOrder
+      .map(
+        (key) => `
+      <div>
+        ${labelMap[key]}:
+        <span style="font-weight: bold; color: ${getColorForValue(
+          metrics[key],
+          COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
+        )}">
+          ${metrics[key]}${key === 'proteinPerEuro' && metrics[key] !== 'N/A' ? 'g' : ''}${
+          key === 'proteinPer100Calories' && metrics[key] !== 'N/A' ? 'g' : ''
+        }
+        </span>
+      </div>
+    `
+      )
+      .join('')}
+    <div style="border-top: 1px solid #ddd; margin: 5px 0;"></div>
+    <div style="font-weight: bold; margin-bottom: 5px;">Nutrients per 100g</div>
+    ${nutrientOrder
+      .map(
+        (key) => `
+      <div>
+        ${key.charAt(0).toUpperCase() + key.slice(1)}:
+        <span style="font-weight: bold;">
+          ${nutrientInfo[key]}
+        </span>
+      </div>
+    `
+      )
+      .join('')}
+  `;
 
   return metricsElement;
 }
 
-export function createCustomSortSelect(onSort: (metric: keyof Metrics) => void): HTMLSelectElement {
+export function createCustomSortSelect(
+  onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
+): HTMLSelectElement {
   const customSelect = document.createElement('select');
   customSelect.className = 'Select_rsSelect__qwGEE Select_rsSelectText__U_NgU nutri-data-sort';
   customSelect.style.marginLeft = '10px';
@@ -75,23 +101,28 @@ export function createCustomSortSelect(onSort: (metric: keyof Metrics) => void):
   defaultOption.textContent = 'Sort by Nutrient Metrics';
   customSelect.appendChild(defaultOption);
 
-  const metricOptions: [keyof Metrics, string][] = [
-    ['proteinPerEuro', 'Protein per Euro'],
-    ['proteinToCarbRatio', 'Protein to Carb Ratio'],
-    ['proteinPer100Calories', 'Protein per 100 Calories'],
+  const metricOptions: [keyof Metrics | keyof NutrientInfo, string, boolean][] = [
+    ['proteinPerEuro', 'Protein per Euro (High to Low)', false],
+    ['proteinToCarbRatio', 'Protein to Carb Ratio (High to Low)', false],
+    ['proteinPer100Calories', 'Protein per 100 Calories (High to Low)', false],
+    ['protein', 'Protein (High to Low)', false],
+    ['carbs', 'Carbs (High to Low)', false],
+    ['fat', 'Fat (High to Low)', false],
+    ['sugar', 'Sugar (Low to High)', true],
+    ['calories', 'Calories (Low to High)', true],
   ];
 
-  metricOptions.forEach(([metric, label]) => {
+  metricOptions.forEach(([metric, label, ascending]) => {
     const option = document.createElement('option');
-    option.value = metric;
+    option.value = `${metric},${ascending}`;
     option.textContent = label;
     customSelect.appendChild(option);
   });
 
   customSelect.addEventListener('change', (event) => {
-    const selectedValue = (event.target as HTMLSelectElement).value as keyof Metrics;
-    if (selectedValue) {
-      onSort(selectedValue);
+    const [metric, ascending] = (event.target as HTMLSelectElement).value.split(',');
+    if (metric) {
+      onSort(metric as keyof Metrics | keyof NutrientInfo, ascending === 'true');
     }
   });
 

@@ -1,11 +1,11 @@
 import { processAllProductCards } from './productProcessing';
 import { setupMutationObserver } from './observerSetup';
 import { createCustomSortSelect } from './domUtils';
-import { Metrics } from './types';
+import { Metrics, NutrientInfo } from './types';
 
 let customSortSelect: HTMLSelectElement | null = null;
 
-async function sortProductCards(metric: keyof Metrics) {
+async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) {
   const productList = document.querySelector('.search-service-rsTiles');
   if (!productList) return;
 
@@ -18,7 +18,7 @@ async function sortProductCards(metric: keyof Metrics) {
     const metricB = parseFloat(
       b.querySelector(`.nutri-data-metrics`)?.getAttribute(`data-${metric}`) || '0'
     );
-    return metricB - metricA; // Sort in descending order
+    return ascending ? metricA - metricB : metricB - metricA;
   });
 
   productCards.forEach((card) => productList.appendChild(card));

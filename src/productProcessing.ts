@@ -49,8 +49,8 @@ export async function processProductCard(card: Element): Promise<void> {
     });
   }
 
-  if (metrics) {
-    const metricsElement = createMetricsElement(metrics);
+  if (metrics && nutrientInfo) {
+    const metricsElement = createMetricsElement(metrics, nutrientInfo);
 
     // Find the correct insertion point within the card
     const detailsWrapper = card.querySelector('.search-service-productDetailsWrapper');
@@ -69,7 +69,7 @@ export async function processProductCard(card: Element): Promise<void> {
       detailsWrapper.appendChild(metricsElement);
     }
   } else {
-    console.warn('Unable to calculate metrics for product card:', card);
+    console.warn('Unable to calculate metrics or get nutrient info for product card:', card);
   }
 
   // Adjust the height of the product card

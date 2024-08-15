@@ -24,7 +24,12 @@ export function createInfoElement(nutrientInfo: NutrientInfo, metrics: Metrics):
         border-top: 1px solid #ddd;
         margin: 10px 0;
       }
+      .nutri-data-info .section-title {
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
     </style>
+    <div class="section-title">Protein Content Analysis</div>
     ${Object.entries(metrics)
       .map(
         ([key, value]) => `
@@ -42,6 +47,7 @@ export function createInfoElement(nutrientInfo: NutrientInfo, metrics: Metrics):
       )
       .join('')}
     <div class="divider"></div>
+    <div class="section-title">Nutrients per 100g</div>
     ${Object.entries(nutrientInfo)
       .map(
         ([key, value]) => `
