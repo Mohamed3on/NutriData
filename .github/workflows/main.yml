@@ -2,8 +2,8 @@ name: Build and Release for Chrome and Firefox
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*.*.*'
 
 jobs:
   build:
@@ -33,12 +33,20 @@ jobs:
     - name: Archive Firefox build files
       run: zip -r build-firefox.zip dist/firefox
 
+    - name: Extract Release Version
+      id: extract_version
+      run: |
+        # Extract the version from the tag (e.g., v1.0.0)
+        tag_name=${{ github.ref_name }}
+        version=${tag_name#v}
+        echo "VERSION=$version" >> $GITHUB_ENV
+
     - name: Create GitHub Release
       id: create_release
       uses: actions/create-release@v1
       with:
         tag_name: ${{ github.ref_name }}
-        release_name: Release ${{ github.ref_name }}
+        release_name: Release ${{ env.VERSION }}
         draft: false
         prerelease: false
       env:
@@ -49,7 +57,7 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./build-chrome.zip
-        asset_name: build-chrome.zip
+        asset_name: build-chrome-${{ env.VERSION }}.zip
         asset_content_type: application/zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -59,7 +67,7 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./build-firefox.zip
-        asset_name: build-firefox.zip
+        asset_name: build-firefox-${{ env.VERSION }}.zip
         asset_content_type: application/zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
