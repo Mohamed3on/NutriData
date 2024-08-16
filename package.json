@@ -8,7 +8,7 @@
   },
   "private": true,
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --config vite.config.chrome.ts",
     "build:chrome": "tsc && vite --config vite.config.chrome.ts build",
     "build:firefox": "tsc && vite --config vite.config.firefox.ts build",
     "postbuild:firefox": "node scripts/firefox.postbuild.js",

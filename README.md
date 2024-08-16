@@ -51,12 +51,19 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 1. Visit the [NutriData Chrome Web Store page](https://chromewebstore.google.com/detail/nutridata-product-nutriti/pkgppeffgmpdjldplgbplbfcmckjemao?authuser=0&hl=en)
 2. Click "Add to Chrome"
 
-### Option 2: Manual Installation (Latest Features)
+### Option 2: Manual Installation for Chrome (Latest Features)
 
 1. Clone this repo or download the source code
 2. Open Chrome and go to `chrome://extensions/`
 3. Enable "Developer mode" (top right)
 4. Click "Load unpacked" and select the extension directory
+
+### Option 3: Manual Installation for Firefox (Latest Features)
+
+1. Clone this repo or download the source code
+2. Open Firefox and go to `about:debugging#/runtime/this-firefox`
+3. Click "Load Temporary Add-on"
+4. Navigate to the extension directory and select the `manifest.json` file
 
 ## 🛠 Usage
 
