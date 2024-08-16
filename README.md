@@ -55,9 +55,9 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 
 1. Download the latest release for Chrome (e.g. `build-chrome-build-016f15a125f1413c81fc208b72f045c56b16d465.zip `)
 2. Unzip the file
-2. Open Chrome and go to `chrome://extensions/`
-3. Enable "Developer mode" (top right)
-4. Click "Load unpacked" and select the extension directory
+3. Open Chrome and go to `chrome://extensions/`
+4. Enable "Developer mode" (top right)
+5. Click "Load unpacked" and select the extension directory
 
 ### Option 3: Manual Installation for Firefox (Latest Features)
 
