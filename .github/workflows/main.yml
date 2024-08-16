@@ -61,13 +61,15 @@ jobs:
       with:
         script: |
           const releaseExists = '${{ steps.check_release.outputs.release_exists }}' === 'true';
-
+          
           if (releaseExists) {
+            // Extract upload URL
             const uploadUrl = '${{ steps.check_release.outputs.upload_url }}'.split('{')[0];
             return {
               upload_url: uploadUrl
             };
           } else {
+            // Create a new release
             const { data: release } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
