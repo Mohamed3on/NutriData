@@ -38,16 +38,26 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const { data: releases } = await github.repos.listReleases({
+          const { Octokit } = require("@octokit/core");
+          const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+
+          // List releases
+          const { data: releases } = await octokit.request('GET /repos/{owner}/{repo}/releases', {
             owner: context.repo.owner,
-            repo: context.repo.repo,
+            repo: context.repo.repo
           });
+
+          // Check if release with specific name exists
           const existingRelease = releases.find(release => release.name === 'Latest Release');
           if (existingRelease) {
-            core.setOutput('release_exists', 'true');
-            core.setOutput('upload_url', existingRelease.upload_url);
+            return {
+              release_exists: 'true',
+              upload_url: existingRelease.upload_url
+            };
           } else {
-            core.setOutput('release_exists', 'false');
+            return {
+              release_exists: 'false'
+            };
           }
 
     - name: Create or Update GitHub Release
@@ -55,21 +65,31 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
+          const { Octokit } = require("@octokit/core");
+          const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+
           const releaseExists = '${{ steps.check_release.outputs.release_exists }}' === 'true';
-          const { data: release } = releaseExists
-            ? { data: (await github.repos.listReleases({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-              })).data.find(r => r.name === 'Latest Release') }
-            : await github.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: 'latest-release',
-                name: 'Latest Release',
-                draft: false,
-                prerelease: false,
-              });
-          core.setOutput('upload_url', release.upload_url.split('{')[0]);
+
+          if (releaseExists) {
+            // Update existing release
+            const uploadUrl = '${{ steps.check_release.outputs.upload_url }}'.split('{')[0];
+            return {
+              upload_url: uploadUrl
+            };
+          } else {
+            // Create a new release
+            const { data: release } = await octokit.request('POST /repos/{owner}/{repo}/releases', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: 'latest-release',
+              name: 'Latest Release',
+              draft: false,
+              prerelease: false
+            });
+            return {
+              upload_url: release.upload_url.split('{')[0]
+            };
+          }
 
     - name: Upload Chrome build to release
       uses: actions/upload-release-asset@v1
