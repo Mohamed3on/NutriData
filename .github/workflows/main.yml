@@ -25,13 +25,13 @@ jobs:
       run: npm run build:chrome
 
     - name: Archive Chrome build files
-      run: zip -r build-chrome.zip dist/chrome
+      run: cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
 
     - name: Build for Firefox
       run: npm run build:firefox
 
     - name: Archive Firefox build files
-      run: zip -r build-firefox.zip dist/firefox
+      run: cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
 
     - name: Extract Release Version
       id: extract_version
