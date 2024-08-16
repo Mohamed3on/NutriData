@@ -33,66 +33,30 @@ jobs:
     - name: Archive Firefox build files
       run: cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
 
-    - name: Generate Unique Tag
-      id: generate_tag
-      run: echo "RELEASE_TAG=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
-
-    - name: Check if Release Exists
-      id: check_release
-      uses: actions/github-script@v6
-      with:
-        script: |
-          const tagName = '${{ env.RELEASE_TAG }}';
-          const { data: releases } = await github.rest.repos.listReleases({
-            owner: context.repo.owner,
-            repo: context.repo.repo
-          });
-
-          const existingRelease = releases.find(release => release.tag_name === tagName);
-          if (existingRelease) {
-            return {
-              release_exists: 'true',
-              upload_url: existingRelease.upload_url
-            };
-          } else {
-            return {
-              release_exists: 'false'
-            };
-          }
+    - name: Create unique tag
+      id: create_tag
+      run: |
+        # Create a unique tag based on the commit SHA
+        tag_name="build-${{ github.sha }}"
+        echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
 
     - name: Create GitHub Release
       id: create_release
-      uses: actions/github-script@v6
+      uses: actions/create-release@v1
       with:
-        script: |
-          const releaseExists = '${{ steps.check_release.outputs.release_exists }}' === 'true';
-          const tagName = '${{ env.RELEASE_TAG }}';
-          
-          if (!releaseExists) {
-            const { data: release } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: tagName,
-              name: 'Release for ' + tagName,
-              draft: false,
-              prerelease: false
-            });
-            return {
-              upload_url: release.upload_url.split('{')[0]
-            };
-          } else {
-            // Return the existing upload URL
-            return {
-              upload_url: '${{ steps.check_release.outputs.upload_url }}'.split('{')[0]
-            };
-          }
+        tag_name: ${{ env.TAG_NAME }}
+        release_name: Release ${{ env.TAG_NAME }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload Chrome build to release
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./build-chrome.zip
-        asset_name: build-chrome.zip
+        asset_name: build-chrome-${{ env.TAG_NAME }}.zip
         asset_content_type: application/zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -102,7 +66,7 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./build-firefox.zip
-        asset_name: build-firefox.zip
+        asset_name: build-firefox-${{ env.TAG_NAME }}.zip
         asset_content_type: application/zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
