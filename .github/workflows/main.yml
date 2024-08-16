@@ -3,7 +3,7 @@ name: Build and Release for Chrome and Firefox
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*'
 
 jobs:
   build:
