@@ -51,6 +51,8 @@ jobs:
         asset_path: ./build-chrome.zip
         asset_name: build-chrome.zip
         asset_content_type: application/zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload Firefox build to release
       uses: actions/upload-release-asset@v1
@@ -59,3 +61,5 @@ jobs:
         asset_path: ./build-firefox.zip
         asset_name: build-firefox.zip
         asset_content_type: application/zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
