@@ -2,8 +2,8 @@ name: Build and Release for Chrome and Firefox
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
 
 jobs:
   build:
@@ -33,31 +33,50 @@ jobs:
     - name: Archive Firefox build files
       run: cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
 
-    - name: Extract Release Version
-      id: extract_version
-      run: |
-        # Extract the version from the tag (e.g., v1.0.0)
-        tag_name=${{ github.ref_name }}
-        version=${tag_name#v}
-        echo "VERSION=$version" >> $GITHUB_ENV
-
-    - name: Create GitHub Release
-      id: create_release
-      uses: actions/create-release@v1
+    - name: Check if Release Exists
+      id: check_release
+      uses: actions/github-script@v6
       with:
-        tag_name: ${{ github.ref_name }}
-        release_name: Release ${{ env.VERSION }}
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { data: releases } = await github.repos.listReleases({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+          });
+          const existingRelease = releases.find(release => release.name === 'Latest Release');
+          if (existingRelease) {
+            core.setOutput('release_exists', 'true');
+            core.setOutput('upload_url', existingRelease.upload_url);
+          } else {
+            core.setOutput('release_exists', 'false');
+          }
+
+    - name: Create or Update GitHub Release
+      id: create_or_update_release
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const releaseExists = '${{ steps.check_release.outputs.release_exists }}' === 'true';
+          const { data: release } = releaseExists
+            ? { data: (await github.repos.listReleases({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              })).data.find(r => r.name === 'Latest Release') }
+            : await github.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: 'latest-release',
+                name: 'Latest Release',
+                draft: false,
+                prerelease: false,
+              });
+          core.setOutput('upload_url', release.upload_url.split('{')[0]);
 
     - name: Upload Chrome build to release
       uses: actions/upload-release-asset@v1
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        upload_url: ${{ steps.create_or_update_release.outputs.upload_url }}
         asset_path: ./build-chrome.zip
-        asset_name: build-chrome-${{ env.VERSION }}.zip
+        asset_name: build-chrome.zip
         asset_content_type: application/zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -65,9 +84,9 @@ jobs:
     - name: Upload Firefox build to release
       uses: actions/upload-release-asset@v1
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        upload_url: ${{ steps.create_or_update_release.outputs.upload_url }}
         asset_path: ./build-firefox.zip
-        asset_name: build-firefox-${{ env.VERSION }}.zip
+        asset_name: build-firefox.zip
         asset_content_type: application/zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
