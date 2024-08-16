@@ -60,22 +60,15 @@ jobs:
             };
           }
 
-    - name: Create or Update GitHub Release
-      id: create_or_update_release
+    - name: Create GitHub Release
+      id: create_release
       uses: actions/github-script@v6
       with:
         script: |
           const releaseExists = '${{ steps.check_release.outputs.release_exists }}' === 'true';
           const tagName = '${{ env.RELEASE_TAG }}';
-
-          if (releaseExists) {
-            // Extract upload URL
-            const uploadUrl = '${{ steps.check_release.outputs.upload_url }}'.split('{')[0];
-            return {
-              upload_url: uploadUrl
-            };
-          } else {
-            // Create a new release
+          
+          if (!releaseExists) {
             const { data: release } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -87,12 +80,17 @@ jobs:
             return {
               upload_url: release.upload_url.split('{')[0]
             };
+          } else {
+            // Return the existing upload URL
+            return {
+              upload_url: '${{ steps.check_release.outputs.upload_url }}'.split('{')[0]
+            };
           }
 
     - name: Upload Chrome build to release
       uses: actions/upload-release-asset@v1
       with:
-        upload_url: ${{ steps.create_or_update_release.outputs.upload_url }}
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./build-chrome.zip
         asset_name: build-chrome.zip
         asset_content_type: application/zip
@@ -102,7 +100,7 @@ jobs:
     - name: Upload Firefox build to release
       uses: actions/upload-release-asset@v1
       with:
-        upload_url: ${{ steps.create_or_update_release.outputs.upload_url }}
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./build-firefox.zip
         asset_name: build-firefox.zip
         asset_content_type: application/zip
