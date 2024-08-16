@@ -38,16 +38,11 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const { Octokit } = require("@octokit/core");
-          const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-
-          // List releases
-          const { data: releases } = await octokit.request('GET /repos/{owner}/{repo}/releases', {
+          const { data: releases } = await github.rest.repos.listReleases({
             owner: context.repo.owner,
             repo: context.repo.repo
           });
 
-          // Check if release with specific name exists
           const existingRelease = releases.find(release => release.name === 'Latest Release');
           if (existingRelease) {
             return {
@@ -65,20 +60,15 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const { Octokit } = require("@octokit/core");
-          const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-
           const releaseExists = '${{ steps.check_release.outputs.release_exists }}' === 'true';
 
           if (releaseExists) {
-            // Update existing release
             const uploadUrl = '${{ steps.check_release.outputs.upload_url }}'.split('{')[0];
             return {
               upload_url: uploadUrl
             };
           } else {
-            // Create a new release
-            const { data: release } = await octokit.request('POST /repos/{owner}/{repo}/releases', {
+            const { data: release } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: 'latest-release',
