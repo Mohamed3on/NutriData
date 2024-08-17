@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -26,6 +28,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Generate release notes and bump version
         id: release
@@ -72,7 +79,4 @@ jobs:
           asset_content_type: application/zip
 
       - name: Push changes
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git push --follow-tags origin main
+        run: git push --follow-tags origin main
