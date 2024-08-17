@@ -4,7 +4,10 @@ on:
   push:
     branches:
       - main
-      - release-improvements
+    paths:
+      - 'src/**'
+      - 'vite.config.ts'
+      - 'package.json'
 
 jobs:
   build:
