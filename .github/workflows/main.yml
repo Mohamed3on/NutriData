@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main, release-improvements
-    paths:
-      - 'src/**'
 
 jobs:
   build:
