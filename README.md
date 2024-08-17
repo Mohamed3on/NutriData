@@ -71,18 +71,20 @@ For more information on conventional commits, see [conventionalcommits.org](http
 
 ### Option 2: Manual Installation for Chrome (Latest Features)
 
-1. Download the latest release for Chrome (e.g. `build-chrome-build-016f15a125f1413c81fc208b72f045c56b16d465.zip `)
-2. Unzip the file
-3. Open Chrome and go to `chrome://extensions/`
-4. Enable "Developer mode" (top right)
-5. Click "Load unpacked" and select the extension directory
+1. Go to the [Releases page](https://github.com/yourusername/nutridata/releases) on GitHub
+2. Download the latest `build-chrome.zip` file
+3. Unzip the file
+4. Open Chrome and go to `chrome://extensions/`
+5. Enable "Developer mode" (top right)
+6. Click "Load unpacked" and select the unzipped extension directory
 
 ### Option 3: Manual Installation for Firefox (Latest Features)
 
-1. Download the latest release for Firefox (e.g. `build-firefox-build-016f15a125f1413c81fc208b72f045c56b16d465.zip `)
-2. Open Firefox and go to `about:debugging#/runtime/this-firefox`
-3. Click "Load Temporary Add-on"
-4. Navigate to the download directory and select the zip file
+1. Go to the [Releases page](https://github.com/yourusername/nutridata/releases) on GitHub
+2. Download the latest `build-firefox.zip` file
+3. Open Firefox and go to `about:debugging#/runtime/this-firefox`
+4. Click "Load Temporary Add-on"
+5. Navigate to the download directory and select the zip file
 
 ## 🛠 Usage
 
