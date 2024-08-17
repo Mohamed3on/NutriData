@@ -35,6 +35,7 @@ jobs:
           git config user.email github-actions@github.com
 
       - name: Generate release notes and bump version
+        id: package-version
         run: pnpm run release
 
       - name: Push changes
@@ -59,7 +60,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.package-version.outputs.version }}
+          tag_name: v${{ steps.package-version.outputs.version }}
           release_name: Release ${{ steps.package-version.outputs.version }}
           body_path: CHANGELOG.md
           draft: false
