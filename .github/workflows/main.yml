@@ -1,0 +1,74 @@
+name: Build and Release for Chrome and Firefox
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build for Chrome
+      run: npm run build:chrome
+
+    - name: Archive Chrome build files
+      run: cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
+
+    - name: Build for Firefox
+      run: npm run build:firefox
+
+    - name: Archive Firefox build files
+      run: cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
+
+    - name: Create unique tag
+      id: create_tag
+      run: |
+        # Create a unique tag based on the commit SHA
+        tag_name="build-${{ github.sha }}"
+        echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{ env.TAG_NAME }}
+        release_name: Release ${{ env.TAG_NAME }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Chrome build to release
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./build-chrome.zip
+        asset_name: build-chrome-${{ env.TAG_NAME }}.zip
+        asset_content_type: application/zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Firefox build to release
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./build-firefox.zip
+        asset_name: build-firefox-${{ env.TAG_NAME }}.zip
+        asset_content_type: application/zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
