@@ -11,90 +11,47 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: 18
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v2
         with:
           version: 8
 
-      - name: Install dependencies
-        run: pnpm install
+      - run: pnpm install
 
-      - name: Configure Git
+      - name: Configure Git and bump version
+        id: version
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-
-      - name: Generate release notes and bump version
-        id: package-version
-        run: |
           pnpm run release || true
           echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: Push changes
-        run: |
           git push --follow-tags origin main || git push origin main
 
-      - name: Build for Chrome
-        run: pnpm run build:chrome
-
-      - name: Archive Chrome build files
-        run: cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
-
-      - name: Build for Firefox
-        run: pnpm run build:firefox
-
-      - name: Archive Firefox build files
-        run: cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
-
-      - name: Check for existing release
-        id: check_release
+      - name: Build and archive
         run: |
-          if gh release view v${{ steps.package-version.outputs.new_version }} &> /dev/null; then
-            echo "release_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "release_exists=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          pnpm run build:chrome
+          pnpm run build:firefox
+          cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
+          cd ../firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
 
       - name: Create or update GitHub Release
-        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${{ steps.check_release.outputs.release_exists }}" == "true" ]]; then
-            gh release edit v${{ steps.package-version.outputs.new_version }} --notes-file CHANGELOG.md
+          release_params=(v${{ steps.version.outputs.new_version }} --notes-file CHANGELOG.md)
+          if gh release view "${release_params[0]}" &> /dev/null; then
+            gh release edit "${release_params[@]}"
           else
-            gh release create v${{ steps.package-version.outputs.new_version }} --notes-file CHANGELOG.md
+            gh release create "${release_params[@]}"
           fi
-          echo "upload_url=$(gh api repos/${{ github.repository }}/releases/tags/v${{ steps.package-version.outputs.new_version }} | jq -r .upload_url)" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Chrome build to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.release.outputs.upload_url }}
-          asset_path: ./build-chrome.zip
-          asset_name: build-chrome.zip
-          asset_content_type: application/zip
-
-      - name: Upload Firefox build to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.release.outputs.upload_url }}
-          asset_path: ./build-firefox.zip
-          asset_name: build-firefox.zip
-          asset_content_type: application/zip
+          for asset in build-chrome.zip build-firefox.zip; do
+            gh release upload "${release_params[0]}" $asset --clobber
+          done
