@@ -15,5 +15,6 @@
     "postbuild:firefox": "node scripts/firefox.postbuild.js",
     "preview": "vite preview",
     "release": "standard-version"
-  }
+  },
+  "packageManager": "pnpm@8.6.0"
 }
