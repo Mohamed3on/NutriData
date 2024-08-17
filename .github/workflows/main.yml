@@ -12,63 +12,71 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
-    - name: Install dependencies
-      run: npm install
+      - name: Install dependencies
+        run: npm install
 
-    - name: Build for Chrome
-      run: npm run build:chrome
+      - name: Configure Git
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
 
-    - name: Archive Chrome build files
-      run: cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
+      - name: Generate release notes and bump version
+        run: npm run release
 
-    - name: Build for Firefox
-      run: npm run build:firefox
+      - name: Push changes
+        run: |
+          git push --follow-tags origin main
 
-    - name: Archive Firefox build files
-      run: cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
+      - name: Build for Chrome
+        run: npm run build:chrome
 
-    - name: Create unique tag
-      id: create_tag
-      run: |
-        # Create a unique tag based on the commit SHA
-        tag_name="build-${{ github.sha }}"
-        echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
+      - name: Archive Chrome build files
+        run: cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
 
-    - name: Create GitHub Release
-      id: create_release
-      uses: actions/create-release@v1
-      with:
-        tag_name: ${{ env.TAG_NAME }}
-        release_name: Release ${{ env.TAG_NAME }}
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build for Firefox
+        run: npm run build:firefox
 
-    - name: Upload Chrome build to release
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./build-chrome.zip
-        asset_name: build-chrome-${{ env.TAG_NAME }}.zip
-        asset_content_type: application/zip
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Archive Firefox build files
+        run: cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
 
-    - name: Upload Firefox build to release
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./build-firefox.zip
-        asset_name: build-firefox-${{ env.TAG_NAME }}.zip
-        asset_content_type: application/zip
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+
+      - name: Upload Chrome build to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build-chrome.zip
+          asset_name: build-chrome.zip
+          asset_content_type: application/zip
+
+      - name: Upload Firefox build to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build-firefox.zip
+          asset_name: build-firefox.zip
+          asset_content_type: application/zip
