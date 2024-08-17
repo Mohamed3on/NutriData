@@ -36,11 +36,47 @@ jobs:
 
       - name: Generate release notes and bump version
         id: package-version
-        run: pnpm run release
+        run: |
+          pnpm run release
+          echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Push changes
         run: |
           git push --follow-tags origin main
+
+      - name: Check for existing tag
+        id: check_tag
+        run: |
+          if git ls-remote --exit-code --tags origin refs/tags/v${{ steps.package-version.outputs.new_version }} >/dev/null 2>&1; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.tag_exists == 'false'
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.package-version.outputs.new_version }}
+          release_name: Release ${{ steps.package-version.outputs.new_version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+
+      - name: Get Release Upload URL
+        id: get_upload_url
+        run: |
+          if [[ "${{ steps.check_tag.outputs.tag_exists }}" == "true" ]]; then
+            upload_url=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${{ steps.package-version.outputs.new_version }}" \
+              | jq -r .upload_url)
+          else
+            upload_url="${{ steps.create_release.outputs.upload_url }}"
+          fi
+          echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
 
       - name: Build for Chrome
         run: pnpm run build:chrome
@@ -54,24 +90,12 @@ jobs:
       - name: Archive Firefox build files
         run: cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.package-version.outputs.version }}
-          release_name: Release ${{ steps.package-version.outputs.version }}
-          body_path: CHANGELOG.md
-          draft: false
-          prerelease: false
-
       - name: Upload Chrome build to release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_upload_url.outputs.upload_url }}
           asset_path: ./build-chrome.zip
           asset_name: build-chrome.zip
           asset_content_type: application/zip
@@ -81,7 +105,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_upload_url.outputs.upload_url }}
           asset_path: ./build-firefox.zip
           asset_name: build-firefox.zip
           asset_content_type: application/zip
