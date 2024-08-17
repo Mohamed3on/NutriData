@@ -51,7 +51,7 @@ jobs:
         uses: trstringer/manual-approval@v1
         with:
           secret: ${{ secrets.GITHUB_TOKEN }}
-          approvers: mohamed3on
+          approvers: Mohamed3on
           minimum-approvals: 1
           issue-title: 'Approve release of version ${{ github.sha }}'
           issue-body: "Please approve this release by commenting '/approve' on this issue."
