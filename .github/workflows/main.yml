@@ -1,4 +1,4 @@
-name: Build and Release for Chrome and Firefox
+name: Build, Approve, and Release for Chrome and Firefox
 
 on:
   push:
@@ -6,24 +6,77 @@ on:
       - main
     paths:
       - 'src/**'
+      - 'vite.config.ts'
+      - 'package.json'
 
 jobs:
-  build-and-release:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - run: pnpm install
+
+      - name: Build extensions
+        run: |
+          pnpm run build:chrome
+          pnpm run build:firefox
+
+      - name: Archive builds
+        run: |
+          cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
+          cd ../firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-builds
+          path: |
+            build-chrome.zip
+            build-firefox.zip
+
+  approve:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Manual Approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: Mohamed3on
+          minimum-approvals: 1
+          issue-title: 'Approve release of version ${{ github.sha }}'
+          issue-body: "Please approve this release by commenting '/approve' on this issue."
+          exclude-workflow-initiator-as-approver: false
+
+  release:
+    needs: approve
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: latest
 
       - run: pnpm install
 
@@ -36,12 +89,10 @@ jobs:
           echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
           git push --follow-tags origin main || git push origin main
 
-      - name: Build and archive
-        run: |
-          pnpm run build:chrome
-          pnpm run build:firefox
-          cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
-          cd ../firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-builds
 
       - name: Create or update GitHub Release
         env:
@@ -57,3 +108,22 @@ jobs:
           for asset in build-chrome.zip build-firefox.zip; do
             gh release upload "${release_params[0]}" $asset --clobber
           done
+
+  rollback:
+    needs: [approve, release]
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rollback release
+        run: |
+          git reset --hard HEAD~1
+          git push --force origin main
+
+      - name: Delete latest release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          latest_release=$(gh release list --limit 1 | cut -f 1)
+          gh release delete $latest_release --yes
