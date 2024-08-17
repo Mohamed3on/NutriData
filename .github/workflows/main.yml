@@ -41,10 +41,14 @@ jobs:
           echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Build for Chrome
-        run: pnpm run build:chrome
+        run: |
+          pnpm run build:chrome
+          cd dist/chrome && zip -r ../../chrome.zip .
 
       - name: Build for Firefox
-        run: pnpm run build:firefox
+        run: |
+          pnpm run build:firefox
+          cd dist/firefox && zip -r ../../firefox.zip .
 
       - name: Create Release
         id: create_release
@@ -64,7 +68,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/chrome.zip
+          asset_path: ./chrome.zip
           asset_name: chrome.zip
           asset_content_type: application/zip
 
@@ -74,7 +78,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/firefox.zip
+          asset_path: ./firefox.zip
           asset_name: firefox.zip
           asset_content_type: application/zip
 
