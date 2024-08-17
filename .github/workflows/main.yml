@@ -8,7 +8,8 @@ on:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -38,7 +39,7 @@ jobs:
 
       - name: Push changes
         run: |
-          git push "https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git" --follow-tags origin main
+          git push --follow-tags origin main
 
       - name: Build for Chrome
         run: pnpm run build:chrome
@@ -56,7 +57,7 @@ jobs:
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.package-version.outputs.version }}
           release_name: Release ${{ steps.package-version.outputs.version }}
@@ -67,7 +68,7 @@ jobs:
       - name: Upload Chrome build to release
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build-chrome.zip
@@ -77,7 +78,7 @@ jobs:
       - name: Upload Firefox build to release
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build-firefox.zip
