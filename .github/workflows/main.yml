@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build and Release for Chrome and Firefox
 
 on:
   push:
@@ -31,56 +31,70 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
 
       - name: Generate release notes and bump version
-        id: release
+        id: package-version
         run: |
-          pnpm run release
+          pnpm run release || true
           echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      - name: Build for Chrome
+      - name: Push changes
         run: |
-          pnpm run build:chrome
-          cd dist/chrome && zip -r ../../chrome.zip .
+          git push --follow-tags origin main || git push origin main
+
+      - name: Build for Chrome
+        run: pnpm run build:chrome
+
+      - name: Archive Chrome build files
+        run: cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
 
       - name: Build for Firefox
+        run: pnpm run build:firefox
+
+      - name: Archive Firefox build files
+        run: cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
+
+      - name: Check for existing release
+        id: check_release
         run: |
-          pnpm run build:firefox
-          cd dist/firefox && zip -r ../../firefox.zip .
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+          if gh release view v${{ steps.package-version.outputs.new_version }} &> /dev/null; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.release.outputs.new_version }}
-          release_name: Release ${{ steps.release.outputs.new_version }}
-          body_path: CHANGELOG.md
-          draft: false
-          prerelease: false
 
-      - name: Upload Chrome build
+      - name: Create or update GitHub Release
+        id: release
+        run: |
+          if [[ "${{ steps.check_release.outputs.release_exists }}" == "true" ]]; then
+            gh release edit v${{ steps.package-version.outputs.new_version }} --notes-file CHANGELOG.md
+          else
+            gh release create v${{ steps.package-version.outputs.new_version }} --notes-file CHANGELOG.md
+          fi
+          echo "upload_url=$(gh api repos/${{ github.repository }}/releases/tags/v${{ steps.package-version.outputs.new_version }} | jq -r .upload_url)" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Chrome build to release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./chrome.zip
-          asset_name: chrome.zip
+          upload_url: ${{ steps.release.outputs.upload_url }}
+          asset_path: ./build-chrome.zip
+          asset_name: build-chrome.zip
           asset_content_type: application/zip
 
-      - name: Upload Firefox build
+      - name: Upload Firefox build to release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./firefox.zip
-          asset_name: firefox.zip
+          upload_url: ${{ steps.release.outputs.upload_url }}
+          asset_path: ./build-firefox.zip
+          asset_name: build-firefox.zip
           asset_content_type: application/zip
-
-      - name: Push changes
-        run: git push --follow-tags origin main
