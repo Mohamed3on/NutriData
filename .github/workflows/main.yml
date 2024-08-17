@@ -45,11 +45,14 @@ jobs:
   approve:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
     steps:
       - name: Manual Approval
         uses: trstringer/manual-approval@v1
         with:
-          secret: ${{ github.TOKEN }}
+          secret: ${{ secrets.GITHUB_TOKEN }}
           approvers: mohamed3on
           minimum-approvals: 1
           issue-title: 'Approve release of version ${{ github.sha }}'
