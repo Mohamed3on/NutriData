@@ -3,7 +3,8 @@ name: Build, Approve, and Release for Chrome and Firefox
 on:
   push:
     branches:
-      - main, release-improvements
+      - main
+      - release-improvements
 
 jobs:
   build:
