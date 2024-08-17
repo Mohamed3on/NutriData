@@ -4,7 +4,8 @@
   "devDependencies": {
     "@crxjs/vite-plugin": "^1.0.14",
     "typescript": "^4.5.4",
-    "vite": "^2.9.15"
+    "vite": "^2.9.15",
+    "standard-version": "^9.3.2"
   },
   "private": true,
   "scripts": {
@@ -12,6 +13,7 @@
     "build:chrome": "tsc && vite --config vite.config.chrome.ts build",
     "build:firefox": "tsc && vite --config vite.config.firefox.ts build",
     "postbuild:firefox": "node scripts/firefox.postbuild.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "release": "standard-version"
   }
 }

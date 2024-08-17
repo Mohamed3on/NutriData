@@ -44,6 +44,24 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 - 🛒 Currently supports REWE online shop (shop.rewe.de)
 - 📊 Clear separation of "Protein Content Analysis" and "Nutrients per 100g"
 
+## 🚀 Automatic Releases
+
+This project uses automatic versioning and release creation. When changes are pushed to the `main` branch, the following process occurs:
+
+1. The version number is automatically bumped based on commit messages.
+2. A new tag is created.
+3. A CHANGELOG.md file is generated or updated.
+4. A new GitHub release is created with the changelog as the release notes.
+5. Chrome and Firefox builds are automatically attached to the release.
+
+To ensure proper versioning, please use conventional commit messages:
+
+- `feat: ...` for new features (bumps minor version)
+- `fix: ...` for bug fixes (bumps patch version)
+- `BREAKING CHANGE: ...` for breaking changes (bumps major version)
+
+For more information on conventional commits, see [conventionalcommits.org](https://www.conventionalcommits.org/).
+
 ## 🚀 Installation
 
 ### Option 1: Chrome Web Store (Stable)
