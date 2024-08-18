@@ -4,6 +4,7 @@ export interface NutrientInfo {
   sugar: string;
   fat: string;
   calories: string;
+  fiber?: string;
 }
 
 export interface PriceAndWeightInfo {

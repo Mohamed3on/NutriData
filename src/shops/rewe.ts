@@ -6,6 +6,7 @@ const NUTRIENT_LABELS: Record<keyof NutrientInfo, string> = {
   sugar: 'Kohlenhydrate, davon Zucker',
   fat: 'Fett',
   calories: 'Energie',
+  fiber: 'Ballaststoffe',
 };
 
 export const reweShop: Shop = {

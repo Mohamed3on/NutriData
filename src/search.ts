@@ -18,6 +18,12 @@ async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, asce
     const metricB = parseFloat(
       b.querySelector(`.nutri-data-metrics`)?.getAttribute(`data-${metric}`) || '0'
     );
+
+    // Handle 'N/A' values
+    if (isNaN(metricA) && isNaN(metricB)) return 0;
+    if (isNaN(metricA)) return ascending ? 1 : -1;
+    if (isNaN(metricB)) return ascending ? -1 : 1;
+
     return ascending ? metricA - metricB : metricB - metricA;
   });
 

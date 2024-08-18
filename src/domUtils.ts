@@ -49,7 +49,14 @@ export function createMetricsElement(
     'proteinToCarbRatio',
   ];
 
-  const nutrientOrder: (keyof NutrientInfo)[] = ['protein', 'carbs', 'fat', 'sugar', 'calories'];
+  const nutrientOrder: (keyof NutrientInfo)[] = [
+    'calories',
+    'protein',
+    'carbs',
+    'fat',
+    'sugar',
+    'fiber',
+  ];
 
   metricsElement.innerHTML = `
     <div style="font-weight: bold; margin-bottom: 5px;">Protein Content Analysis</div>
@@ -73,8 +80,9 @@ export function createMetricsElement(
     <div style="border-top: 1px solid #ddd; margin: 5px 0;"></div>
     <div style="font-weight: bold; margin-bottom: 5px;">Nutrients per 100g</div>
     ${nutrientOrder
-      .map(
-        (key) => `
+      .map((key) =>
+        nutrientInfo[key]
+          ? `
       <div>
         ${key.charAt(0).toUpperCase() + key.slice(1)}:
         <span style="font-weight: bold;">
@@ -82,6 +90,7 @@ export function createMetricsElement(
         </span>
       </div>
     `
+          : ''
       )
       .join('')}
   `;
@@ -103,13 +112,14 @@ export function createCustomSortSelect(
 
   const metricOptions: [keyof Metrics | keyof NutrientInfo, string, boolean][] = [
     ['proteinPerEuro', 'Protein per Euro (High to Low)', false],
-    ['proteinToCarbRatio', 'Protein to Carb Ratio (High to Low)', false],
     ['proteinPer100Calories', 'Protein per 100 Calories (High to Low)', false],
+    ['proteinToCarbRatio', 'Protein to Carb Ratio (High to Low)', false],
     ['protein', 'Protein (High to Low)', false],
     ['carbs', 'Carbs (High to Low)', false],
     ['fat', 'Fat (High to Low)', false],
-    ['sugar', 'Sugar (Low to High)', true],
+    ['fiber', 'Fiber (High to Low)', false],
     ['calories', 'Calories (Low to High)', true],
+    ['sugar', 'Sugar (Low to High)', true],
   ];
 
   metricOptions.forEach(([metric, label, ascending]) => {
