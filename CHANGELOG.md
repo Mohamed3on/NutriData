@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.2.9](https://github.com/yourusername/nutridata/compare/v0.2.8...v0.2.9) (2024-08-18)
+
+
+### Bug Fixes
+
+* metrics being NaNs for 0 carb/0 calorie products ([80fb2e5](https://github.com/yourusername/nutridata/commit/80fb2e5b48562c716671f19c291968618852ed2a))
+* sorting options not being reset, search UI now works on all product pages ([4677d9a](https://github.com/yourusername/nutridata/commit/4677d9a9035ccc27131ec2adfd1cdcaa2ba3d88e))
+
 ### [0.2.8](https://github.com/yourusername/nutridata/compare/v0.2.7...v0.2.8) (2024-08-18)
 
 
