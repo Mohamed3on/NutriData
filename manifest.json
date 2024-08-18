@@ -6,13 +6,13 @@
   "permissions": ["storage"],
   "content_scripts": [
     {
-      "matches": ["*://shop.rewe.de/productList*", "*://shop.rewe.de/p/*", "*://shop.rewe.de/c/*"],
+      "matches": ["*://shop.rewe.de/*"],
       "run_at": "document_idle",
-      "js": ["src/search.ts"]
+      "js": ["src/search.ts"],
+      "exclude_matches": ["*://shop.rewe.de/p/*", "*://shop.rewe.de/products/*"]
     },
     {
       "matches": ["*://shop.rewe.de/p/*", "*://shop.rewe.de/products/*"],
-      "exclude_matches": ["*://shop.rewe.de/productList*"],
       "run_at": "document_idle",
       "js": ["src/main.ts"]
     }

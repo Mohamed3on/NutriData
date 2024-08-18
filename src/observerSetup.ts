@@ -3,7 +3,7 @@ import { processProductCard } from './productProcessing';
 export function setupMutationObserver(): void {
   const targetNode = document.querySelector('.search-service-rsTiles');
   if (!targetNode) {
-    console.error('Target node for MutationObserver not found');
+    console.log('This page is probably not a product list page. Aborting observer setup.');
     return;
   }
 
@@ -16,34 +16,38 @@ export function setupMutationObserver(): void {
   const inProgressElements = new Set<HTMLElement>();
 
   const observer = new MutationObserver((mutations) => {
+    let newCardAdded = false;
+
     mutations.forEach((mutation) => {
       if (mutation.type === 'childList') {
         mutation.addedNodes.forEach((node) => {
           if (node instanceof HTMLElement && node.classList.contains('search-service-product')) {
-            // Check if the element is not currently being processed
-            if (!inProgressElements.has(node)) {
-              const metricsElement = node.querySelector('.nutri-data-metrics');
-              if (!metricsElement) {
-                console.log(node.querySelector('.LinesEllipsis')?.textContent);
-                // Add the element to the in-progress set before processing
-                // This prevents multiple instances of the same element from being processed simultaneously, which is a weird race condition that I can't be bothered to fix
-                inProgressElements.add(node);
-                processProductCard(node)
-                  .then(() => {
-                    // Remove the element from the in-progress set after successful processing
-                    inProgressElements.delete(node);
-                  })
-                  .catch((error) => {
-                    console.error('Error processing dynamically added product card:', error);
-                    // Remove the element from the in-progress set if processing fails
-                    inProgressElements.delete(node);
-                  });
-              }
+            // Check if the element has not been processed yet
+            if (!node.hasAttribute('data-nutridata-processed')) {
+              newCardAdded = true;
+              console.log(node.querySelector('.LinesEllipsis')?.textContent);
+              inProgressElements.add(node);
+              processProductCard(node)
+                .then(() => {
+                  inProgressElements.delete(node);
+                })
+                .catch((error) => {
+                  console.error('Error processing dynamically added product card:', error);
+                  inProgressElements.delete(node);
+                });
             }
           }
         });
       }
     });
+    // Reset the sorting select if different products were added
+    if (newCardAdded) {
+      const customSortSelect = document.querySelector('.nutri-data-sort') as HTMLSelectElement;
+      if (customSortSelect) {
+        customSortSelect.value = '';
+      }
+    }
+    newCardAdded = false;
   });
 
   observer.observe(targetNode, observerOptions);
