@@ -4,23 +4,27 @@ export function calculateMetrics(
   nutrientInfo: NutrientInfo,
   priceAndWeightInfo: PriceAndWeightInfo
 ): Metrics {
-  const proteinGramsPer100g = parseFloat(nutrientInfo.protein);
-  const { price, weight, pricePerKg } = priceAndWeightInfo;
-  const carbGrams = parseFloat(nutrientInfo.carbs);
+  // Simplified parsing and default values
+  const protein = parseFloat(nutrientInfo.protein) || 0;
+  const carbs = parseFloat(nutrientInfo.carbs) || 0;
+  const calories = parseInt(nutrientInfo.calories.replace(/\D/g, '')) || 0;
+  const { price = 0, weight = 0 } = priceAndWeightInfo;
 
-  // Handle calories by keeping only numbers, removing decimal points
-  const calories = parseInt(nutrientInfo.calories.replace(/[^\d]/g, ''), 10);
+  return {
+    proteinPerEuro: calculateProteinPerEuro(protein, price, weight),
+    proteinToCarbRatio: calculateRatio(protein, carbs),
+    proteinPer100Calories: calories > 0 ? calculateRatio(protein, calories / 100) : 'N/A',
+  };
+}
 
-  let proteinPerEuro = 'N/A';
-  if (weight) {
-    const totalProtein = (proteinGramsPer100g * weight) / 100;
-    proteinPerEuro = (totalProtein / price).toFixed(1);
-  } else if (pricePerKg) {
-    proteinPerEuro = ((proteinGramsPer100g * 10) / pricePerKg).toFixed(1);
+function calculateProteinPerEuro(protein: number, price: number, weight: number | null): string {
+  if (weight && price > 0) {
+    return ((protein * weight) / (100 * price)).toFixed(1);
   }
+  return 'N/A';
+}
 
-  const proteinToCarbRatio = (proteinGramsPer100g / carbGrams).toFixed(1);
-  const proteinPer100Calories = ((proteinGramsPer100g / calories) * 100).toFixed(1);
-
-  return { proteinPerEuro, proteinToCarbRatio, proteinPer100Calories };
+function calculateRatio(numerator: number, denominator: number): string {
+  if (denominator === 0) return numerator > 0 ? 'Inf' : 'N/A';
+  return (numerator / denominator).toFixed(1);
 }
