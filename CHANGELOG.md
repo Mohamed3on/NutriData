@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.2.8](https://github.com/yourusername/nutridata/compare/v0.2.7...v0.2.8) (2024-08-18)
+
+
+### Features
+
+* add fiber ([cb860b5](https://github.com/yourusername/nutridata/commit/cb860b51d480227614efcaa2ade2224d03e9a354))
+
 ### [0.2.7](https://github.com/yourusername/nutridata/compare/v0.2.6...v0.2.7) (2024-08-17)
 
 ### [0.2.6](https://github.com/yourusername/nutridata/compare/v0.2.5...v0.2.6) (2024-08-17)
