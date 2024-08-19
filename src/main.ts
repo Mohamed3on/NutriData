@@ -2,8 +2,9 @@ import { Shop } from './types';
 import { calculateMetrics } from './metrics';
 import { createInfoElement } from './ui';
 import { reweShop } from './shops/rewe';
+import { amazonShop } from './shops/amazon';
 
-const shops: Shop[] = [reweShop];
+const shops: Shop[] = [reweShop, amazonShop];
 
 function detectShop(): Shop | null {
   const hostname = window.location.hostname;
@@ -14,7 +15,6 @@ async function displayInfo(shop: Shop) {
   const doc = document;
   const nutrientInfo = shop.getNutrientInfo(doc);
 
-  // Break early if nutrient info is not available
   if (!nutrientInfo || Object.values(nutrientInfo).every((value) => value === '')) {
     console.log('Nutrient information not available');
     return;

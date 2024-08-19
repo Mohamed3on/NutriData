@@ -10,8 +10,8 @@ export function createInfoElement(nutrientInfo: NutrientInfo, metrics: Metrics):
         background-color: #f8f8f8;
         border: 1px solid #ddd;
         border-radius: 5px;
-        padding: 15px;
-        margin-top: 15px;
+        padding: 16px;
+        margin: 16px auto;
         width: max-content;
       }
       .nutri-data-info p {

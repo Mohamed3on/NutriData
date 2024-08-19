@@ -8,9 +8,9 @@ export interface NutrientInfo {
 }
 
 export interface PriceAndWeightInfo {
-  price: number;
-  weight: number | null;
-  pricePerKg: number | null;
+  price?: number;
+  weight?: number | null;
+  pricePerKg?: number | null;
 }
 
 export interface Metrics {
