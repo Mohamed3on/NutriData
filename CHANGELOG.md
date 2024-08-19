@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.2.10](https://github.com/yourusername/nutridata/compare/v0.2.9...v0.2.10) (2024-08-19)
+
+
+### Features
+
+* add amazon.co.uk support ([2cb60e6](https://github.com/yourusername/nutridata/commit/2cb60e6fd983cb9d41db53931179a4e95e049a9e))
+* add amazon.de product pages ([6037df1](https://github.com/yourusername/nutridata/commit/6037df1bce34b7ce8d64dfed8181b1090eb90cf5))
+
 ### [0.2.9](https://github.com/yourusername/nutridata/compare/v0.2.8...v0.2.9) (2024-08-18)
 
 
