@@ -1,7 +1,6 @@
 import { NutrientInfo, Metrics } from './types';
 import { calculateMetrics } from './metrics';
 import { reweShop } from './shops/rewe';
-import { getCachedData, setCachedData } from './cacheUtils';
 import { fetchProductData, createMetricsElement } from './domUtils';
 
 // Main function to process all product cards
@@ -47,10 +46,11 @@ function getProductUrl(card: Element): string | null {
 async function getProductData(
   url: string
 ): Promise<{ nutrientInfo: NutrientInfo | null; metrics: Metrics | null }> {
-  const cachedData = await getCachedData(url);
-  if (cachedData) {
-    return { nutrientInfo: cachedData.nutrientInfo, metrics: cachedData.metrics };
-  }
+  // TODO: Implement caching once we iron out the bugs
+  // const cachedData = await getCachedData(url);
+  // if (cachedData) {
+  //   return { nutrientInfo: cachedData.nutrientInfo, metrics: cachedData.metrics };
+  // }
 
   const doc = await fetchProductData(url);
   const nutrientInfo = reweShop.getNutrientInfo(doc);
@@ -63,7 +63,7 @@ async function getProductData(
   const priceAndWeightInfo = reweShop.getPriceAndWeightInfo(doc);
   const metrics = calculateMetrics(nutrientInfo, priceAndWeightInfo);
 
-  await setCachedData(url, { nutrientInfo, metrics, timestamp: Date.now() });
+  // await setCachedData(url, { nutrientInfo, metrics, timestamp: Date.now() });
   return { nutrientInfo, metrics };
 }
 

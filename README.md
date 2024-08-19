@@ -19,7 +19,7 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 ### Product Page
 
 - **Key nutritional metrics:**
-  - 💪 Protein per euro (g/€)
+  - 💪 Protein per euro/pound (g/€ or g/£)
   - 🔥 Protein per 100 calories (g)
   - 🍞 Protein to carb ratio
 - Detailed nutritional info in an easy-to-read format
@@ -41,8 +41,18 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 ### General
 
 - 🚀 Performance-boosting data caching
-- 🛒 Currently supports REWE online shop (shop.rewe.de)
+- 🛒 Supports:
+  - REWE online shop (shop.rewe.de) - full support
+  - Amazon.de and Amazon.co.uk - alpha support (product pages only, limited to items with nutritional data)
 - 📊 Clear separation of "Protein Content Analysis" and "Nutrients per 100g"
+
+## ⚠️ Amazon Support (Alpha)
+
+- Currently available for amazon.de and amazon.co.uk
+- Limited to product pages only
+- Functionality depends on the availability of nutritional data for each product
+- Many products have incomplete or missing nutritional information
+- Search page support and improvements are planned for future updates
 
 ## 🚀 Automatic Releases
 
@@ -88,9 +98,11 @@ For more information on conventional commits, see [conventionalcommits.org](http
 
 ## 🛠 Usage
 
-1. Visit shop.rewe.de (more shops coming soon!)
+1. Visit shop.rewe.de, amazon.de, or amazon.co.uk
 2. Browse products or search results
-3. Use custom sort options to find your perfect nutritional match
+   - For REWE: Full functionality on product and search pages
+   - For Amazon: Currently supports product pages only (alpha version)
+3. Use custom sort options to find your perfect nutritional match (REWE only)
 
 ## 🔧 Customization
 

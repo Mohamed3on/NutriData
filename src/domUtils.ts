@@ -1,5 +1,6 @@
 import { Metrics, NutrientInfo } from './types';
 import { COLOR_THRESHOLDS, getColorForValue } from './utils';
+import { globalCurrency } from './globalState';
 
 export async function fetchProductData(url: string): Promise<Document> {
   const response = await fetch(url);
@@ -38,13 +39,13 @@ export function createMetricsElement(
   });
 
   const labelMap: Record<keyof Metrics, string> = {
-    proteinPerEuro: 'Protein per €',
+    proteinPerCurrency: `Protein Per ${globalCurrency}`,
     proteinToCarbRatio: 'Protein to Carb Ratio',
     proteinPer100Calories: 'Protein per 100 calories',
   };
 
   const metricOrder: (keyof Metrics)[] = [
-    'proteinPerEuro',
+    'proteinPerCurrency',
     'proteinPer100Calories',
     'proteinToCarbRatio',
   ];
@@ -69,7 +70,7 @@ export function createMetricsElement(
           metrics[key],
           COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
         )}">
-          ${metrics[key]}${key === 'proteinPerEuro' && metrics[key] !== 'N/A' ? 'g' : ''}${
+          ${metrics[key]}${key === 'proteinPerCurrency' && metrics[key] !== 'N/A' ? 'g' : ''}${
           key === 'proteinPer100Calories' && metrics[key] !== 'N/A' ? 'g' : ''
         }
         </span>
@@ -111,7 +112,7 @@ export function createCustomSortSelect(
   customSelect.appendChild(defaultOption);
 
   const metricOptions: [keyof Metrics | keyof NutrientInfo, string, boolean][] = [
-    ['proteinPerEuro', 'Protein per Euro (High to Low)', false],
+    ['proteinPerCurrency', `Protein per ${globalCurrency} (High to Low)`, false],
     ['proteinPer100Calories', 'Protein per 100 Calories (High to Low)', false],
     ['proteinToCarbRatio', 'Protein to Carb Ratio (High to Low)', false],
     ['protein', 'Protein (High to Low)', false],

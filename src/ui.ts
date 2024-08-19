@@ -1,5 +1,6 @@
 import { Metrics, NutrientInfo } from './types';
 import { COLOR_THRESHOLDS, getColorForValue, formatLabel } from './utils';
+import { globalCurrency } from './globalState';
 
 export function createInfoElement(nutrientInfo: NutrientInfo, metrics: Metrics): HTMLElement {
   const infoElement = document.createElement('div');
@@ -33,12 +34,12 @@ export function createInfoElement(nutrientInfo: NutrientInfo, metrics: Metrics):
     ${Object.entries(metrics)
       .map(
         ([key, value]) => `
-      <p>${formatLabel(key)}:
+      <p>${formatLabel(key, globalCurrency)}:
         <span class="value" style="color: ${getColorForValue(
           value,
           COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
         )}">
-          ${value}${key === 'proteinPerEuro' && value !== 'N/A' ? 'g/€' : ''}${
+          ${value}${key === 'proteinPerCurrency' && value !== 'N/A' ? `g/${globalCurrency}` : ''}${
           key === 'proteinPer100Calories' && value !== 'N/A' ? 'g' : ''
         }
         </span>

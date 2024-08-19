@@ -2,7 +2,7 @@ import { ColorThresholds } from './types';
 
 // source: i made them up
 export const COLOR_THRESHOLDS: Record<string, ColorThresholds> = {
-  proteinPerEuro: { good: 12, bad: 4 },
+  proteinPerCurrency: { good: 12, bad: 4 },
   proteinToCarbRatio: { good: 2, bad: 0.1 },
   proteinPer100Calories: { good: 10, bad: 3 },
 };
@@ -32,9 +32,20 @@ export function getColorForValue(value: string, thresholds: ColorThresholds): st
   )})`;
 }
 
-export function formatLabel(key: string): string {
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, (str) => str.toUpperCase())
-    .replace('Per100', 'Per 100');
+export function formatLabel(key: string, currency: string | null = null): string {
+  switch (key) {
+    case 'proteinPerCurrency':
+      return `Protein per ${currency}`;
+    case 'proteinPer100Calories':
+      return 'Protein per 100 Calories';
+    // ... other cases ...
+    default:
+      return (
+        key.charAt(0).toUpperCase() +
+        key
+          .slice(1)
+          .replace(/([A-Z])/g, ' $1')
+          .trim()
+      );
+  }
 }

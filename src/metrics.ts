@@ -8,12 +8,12 @@ export function calculateMetrics(
   const protein = parseFloat(nutrientInfo.protein) || 0;
   const carbs = parseFloat(nutrientInfo.carbs) || 0;
   const calories = nutrientInfo.calories
-    ? parseInt(nutrientInfo.calories.replace(/\D/g, ''))
+    ? parseFloat(nutrientInfo.calories.replace(/,/g, ''))
     : null;
   const { pricePerKg = null, weight = null, price = 0 } = priceAndWeightInfo;
 
   const metrics: Partial<Metrics> = {
-    proteinPerEuro: calculateProteinPerEuro(protein, price, weight, pricePerKg),
+    proteinPerCurrency: calculateProteinPerCurrency(protein, price, weight, pricePerKg),
     proteinToCarbRatio: calculateRatio(protein, carbs),
   };
 
@@ -25,7 +25,7 @@ export function calculateMetrics(
   return metrics as Metrics;
 }
 
-function calculateProteinPerEuro(
+function calculateProteinPerCurrency(
   protein: number,
   price: number,
   weight: number | null,

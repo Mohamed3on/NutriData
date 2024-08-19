@@ -12,7 +12,12 @@
       "exclude_matches": ["*://shop.rewe.de/p/*", "*://shop.rewe.de/products/*"]
     },
     {
-      "matches": ["*://shop.rewe.de/p/*", "*://shop.rewe.de/products/*", "*://www.amazon.de/*"],
+      "matches": [
+        "*://shop.rewe.de/p/*",
+        "*://shop.rewe.de/products/*",
+        "*://www.amazon.de/*",
+        "*://www.amazon.co.uk/*"
+      ],
       "run_at": "document_end",
       "js": ["src/main.ts"]
     }

@@ -14,7 +14,7 @@ export interface PriceAndWeightInfo {
 }
 
 export interface Metrics {
-  proteinPerEuro: string;
+  proteinPerCurrency: string;
   proteinToCarbRatio: string;
   proteinPer100Calories: string;
 }

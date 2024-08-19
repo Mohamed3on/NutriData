@@ -1,3 +1,4 @@
+import { setGlobalCurrency } from '../globalState';
 import { NutrientInfo, PriceAndWeightInfo, Shop } from '../types';
 
 const NUTRIENT_LABELS: Record<keyof NutrientInfo, string> = {
@@ -37,13 +38,20 @@ export const amazonShop: Shop = {
   getPriceAndWeightInfo(doc: Document): PriceAndWeightInfo {
     const pricePerKgElement = doc.querySelector('.a-price.a-text-price[data-a-size="mini"]');
     const pricePerKgText = pricePerKgElement?.querySelector('.a-offscreen')?.textContent || '';
-    const pricePerKgMatch = pricePerKgText.match(/€([\d,.]+)/);
-    const pricePerKg = pricePerKgMatch ? parseFloat(pricePerKgMatch[1].replace(',', '.')) : null;
+    const pricePerKgMatch = pricePerKgText.match(/([€£])([\d,.]+)/);
+
+    let pricePerKg: number | null = null;
+
+    if (pricePerKgMatch) {
+      const [, detectedCurrency, value] = pricePerKgMatch;
+      pricePerKg = parseFloat(value.replace(',', '.'));
+      setGlobalCurrency(detectedCurrency as '€' | '£');
+    }
 
     return { pricePerKg };
   },
 
   getInsertionPoint(element: HTMLElement): HTMLElement | null {
-    return element.querySelector('#desktop_almBuyBox');
+    return element.querySelector('#desktop_buybox');
   },
 };
