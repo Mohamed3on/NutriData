@@ -47,6 +47,8 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 - 📊 Clear separation of "Protein Content Analysis" and "Nutrients per 100g"
 
 ## ⚠️ Amazon Support (Alpha)
+![CleanShot 2024-08-19 at 1  28 13@2x](https://github.com/user-attachments/assets/73c77dd4-5b4a-4454-a68c-36f8177baef7)
+
 
 - Currently available for amazon.de and amazon.co.uk
 - Limited to product pages only
