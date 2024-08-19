@@ -1,6 +1,6 @@
 {
   "name": "nutridata",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "devDependencies": {
     "@crxjs/vite-plugin": "^1.0.14",
     "@types/jsdom": "^21.1.7",

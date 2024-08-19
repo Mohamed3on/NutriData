@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.2.11](https://github.com/yourusername/nutridata/compare/v0.2.10...v0.2.11) (2024-08-19)
+
+
+### Bug Fixes
+
+* price per currency calculation, add tests ([4835bca](https://github.com/yourusername/nutridata/commit/4835bca98b330f5f4cce1432d31a3d0022aaada1))
+
 ### [0.2.10](https://github.com/yourusername/nutridata/compare/v0.2.9...v0.2.10) (2024-08-19)
 
 
