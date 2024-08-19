@@ -9,6 +9,6 @@
     { "type": "perf", "hidden": true },
     { "type": "test", "hidden": true }
   ],
-  "commitUrlFormat": "https://github.com/yourusername/nutridata/commit/{{hash}}",
-  "compareUrlFormat": "https://github.com/yourusername/nutridata/compare/{{previousTag}}...{{currentTag}}"
+  "commitUrlFormat": "https://github.com/mohamed3on/nutridata/commit/{{hash}}",
+  "compareUrlFormat": "https://github.com/mohamed3on/nutridata/compare/{{previousTag}}...{{currentTag}}"
 }
