@@ -3,9 +3,12 @@
   "version": "0.2.10",
   "devDependencies": {
     "@crxjs/vite-plugin": "^1.0.14",
+    "@types/jsdom": "^21.1.7",
+    "jsdom": "^24.1.1",
+    "standard-version": "^9.3.2",
     "typescript": "^4.5.4",
     "vite": "^2.9.15",
-    "standard-version": "^9.3.2"
+    "vitest": "^2.0.5"
   },
   "private": true,
   "scripts": {
@@ -14,6 +17,7 @@
     "build:firefox": "tsc && vite --config vite.config.firefox.ts build",
     "postbuild:firefox": "node scripts/firefox.postbuild.js",
     "preview": "vite preview",
-    "release": "standard-version"
+    "release": "standard-version",
+    "test": "vitest"
   }
 }

@@ -36,22 +36,50 @@ export const amazonShop: Shop = {
   },
 
   getPriceAndWeightInfo(doc: Document): PriceAndWeightInfo {
-    const pricePerKgElement = doc.querySelector('.a-price.a-text-price[data-a-size="mini"]');
-    const pricePerKgText = pricePerKgElement?.querySelector('.a-offscreen')?.textContent || '';
-    const pricePerKgMatch = pricePerKgText.match(/([€£])([\d,.]+)/);
-
     let pricePerKg: number | null = null;
+    let detectedCurrency: '€' | '£' | null = null;
 
-    if (pricePerKgMatch) {
-      const [, detectedCurrency, value] = pricePerKgMatch;
-      pricePerKg = parseFloat(value.replace(',', '.'));
-      setGlobalCurrency(detectedCurrency as '€' | '£');
+    // Try to find the pricePerUnit element first
+    const pricePerUnitElement = doc.querySelector('.pricePerUnit');
+    // If not found, look for the alternative element
+    const alternativeElement =
+      pricePerUnitElement ||
+      doc.querySelector('.a-size-mini.a-color-base.aok-align-center.a-text-normal');
+
+    if (alternativeElement) {
+      const pricePerUnitText = alternativeElement.textContent?.trim() || '';
+      const match = pricePerUnitText.match(/([£€])([\d,.]+)\s*\/\s*([\d,.]+)?\s*([a-zA-Z]+)/);
+
+      if (match) {
+        const [, currency, value, amount, unit] = match;
+        detectedCurrency = currency as '€' | '£';
+        const price = parseFloat(value.replace(',', '.'));
+        const quantity = amount ? parseFloat(amount.replace(',', '.')) : 1;
+
+        if (
+          unit.toLowerCase() === 'g' ||
+          unit.toLowerCase() === 'gram' ||
+          unit.toLowerCase() === 'grams'
+        ) {
+          pricePerKg = (price / quantity) * 1000;
+        } else if (
+          unit.toLowerCase() === 'kg' ||
+          unit.toLowerCase() === 'kilo' ||
+          unit.toLowerCase() === 'kilos'
+        ) {
+          pricePerKg = price / quantity;
+        }
+      }
+    }
+
+    if (detectedCurrency) {
+      setGlobalCurrency(detectedCurrency);
     }
 
     return { pricePerKg };
   },
 
   getInsertionPoint(element: HTMLElement): HTMLElement | null {
-    return element.querySelector('#desktop_buybox');
+    return element.querySelector('#imageBlock');
   },
 };

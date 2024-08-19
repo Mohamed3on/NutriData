@@ -25,6 +25,9 @@ jobs:
 
       - run: pnpm install
 
+      - name: Run tests
+        run: pnpm run test
+
       - name: Build extensions
         run: |
           pnpm run build:chrome
