@@ -1,7 +1,7 @@
 import { Metrics, NutrientInfo } from './types';
 import { globalCurrency } from './globalState';
 import { MetricsCard } from './components/MetricsCard';
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import React from 'react';
 
 export async function fetchProductData(url: string): Promise<Document> {
@@ -29,7 +29,8 @@ export function createMetricsElement(
       metricsElement.setAttribute(`data-${key}`, value);
     });
 
-    ReactDOM.render(<MetricsCard metrics={metrics} nutrientInfo={nutrientInfo} />, metricsElement);
+    const root = createRoot(metricsElement);
+    root.render(<MetricsCard metrics={metrics} nutrientInfo={nutrientInfo} />);
   }
 
   return metricsElement;
