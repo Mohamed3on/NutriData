@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/icons/Nutridata Watercolor Logo full.png" alt="NutriData Logo" width="200"/>
+</p>
+
 # 🥗 NutriData Extension
 
 ![Product Page Screenshot](https://github.com/user-attachments/assets/dbbe4cc6-68d5-4631-9cc4-dc754a022e7b)
@@ -47,8 +51,8 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 - 📊 Clear separation of "Protein Content Analysis" and "Nutrients per 100g"
 
 ## ⚠️ Amazon Support (Alpha)
-![CleanShot 2024-08-19 at 1  28 13@2x](https://github.com/user-attachments/assets/73c77dd4-5b4a-4454-a68c-36f8177baef7)
 
+![CleanShot 2024-08-19 at 1 28 13@2x](https://github.com/user-attachments/assets/73c77dd4-5b4a-4454-a68c-36f8177baef7)
 
 - Currently available for amazon.de and amazon.co.uk
 - Limited to product pages only
