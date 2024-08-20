@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.2.12](https://github.com/mohamed3on/nutridata/compare/v0.2.11...v0.2.12) (2024-08-20)
+
+
+### Features
+
+* add extension icons, return caching, add tooltips ([5d44e97](https://github.com/mohamed3on/nutridata/commit/5d44e97dc0b2a36e89815f66b1cbad6122f46af3))
+
 ### [0.2.11](https://github.com/yourusername/nutridata/compare/v0.2.10...v0.2.11) (2024-08-19)
 
 ### Bug Fixes
