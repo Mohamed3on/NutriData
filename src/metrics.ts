@@ -4,9 +4,8 @@ export function calculateMetrics(
   nutrientInfo: NutrientInfo,
   priceAndWeightInfo: PriceAndWeightInfo
 ): Metrics {
-  // Simplified parsing and default values
   const protein = parseFloat(nutrientInfo.protein) || 0;
-  const carbs = parseFloat(nutrientInfo.carbs) || 0;
+  const carbs = parseFloat(nutrientInfo.carbs);
   const calories = nutrientInfo.calories
     ? parseFloat(nutrientInfo.calories.replace(/,/g, ''))
     : null;
@@ -14,10 +13,12 @@ export function calculateMetrics(
 
   const metrics: Partial<Metrics> = {
     proteinPerCurrency: calculateProteinPerCurrency(protein, price, weight, pricePerKg),
-    proteinToCarbRatio: calculateRatio(protein, carbs),
   };
 
-  // Only include proteinPer100Calories if calorie data is available
+  if (!isNaN(carbs)) {
+    metrics.proteinToCarbRatio = calculateRatio(protein, carbs);
+  }
+
   if (calories !== null && calories > 0) {
     metrics.proteinPer100Calories = calculateRatio(protein, calories / 100);
   }

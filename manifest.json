@@ -3,22 +3,22 @@
   "name": "NutriData - Product Nutrition Analyzer for REWE",
   "version": "0.2.11",
   "description": "Analyzes nutrition information for products on supported online shops. (REWE)",
-  "permissions": [
-    "storage"
-  ],
+  "permissions": ["storage"],
+  "background": {
+    "service_worker": "background.ts"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "content_scripts": [
     {
-      "matches": [
-        "*://shop.rewe.de/*"
-      ],
+      "matches": ["*://shop.rewe.de/*"],
       "run_at": "document_end",
-      "js": [
-        "src/search.ts"
-      ],
-      "exclude_matches": [
-        "*://shop.rewe.de/p/*",
-        "*://shop.rewe.de/products/*"
-      ]
+      "js": ["src/search.ts"],
+      "exclude_matches": ["*://shop.rewe.de/p/*", "*://shop.rewe.de/products/*"]
     },
     {
       "matches": [
@@ -28,9 +28,7 @@
         "*://www.amazon.co.uk/*"
       ],
       "run_at": "document_end",
-      "js": [
-        "src/main.ts"
-      ]
+      "js": ["src/main.ts"]
     }
   ]
 }

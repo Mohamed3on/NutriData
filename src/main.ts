@@ -24,7 +24,7 @@ async function displayInfo(shop: Shop) {
   const insertionPoint = shop.getInsertionPoint(doc.body);
 
   if (!insertionPoint) {
-    console.error('Insertion point not found');
+    console.log('Insertion point not found, probably because the page is not loaded yet');
     return;
   }
 

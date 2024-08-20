@@ -1,6 +1,7 @@
 import { Metrics, NutrientInfo } from './types';
-import { COLOR_THRESHOLDS, getColorForValue } from './utils';
+import { COLOR_THRESHOLDS, getColorForValue, formatLabel } from './utils';
 import { globalCurrency } from './globalState';
+import { createTooltipHTML, createTooltipStyles } from './ui';
 
 export async function fetchProductData(url: string): Promise<Document> {
   const response = await fetch(url);
@@ -19,11 +20,12 @@ export function createMetricsElement(
     background-color: #f8f8f8;
     border: 1px solid #ddd;
     border-radius: 5px;
-    padding: 5px;
-    margin: 8px 0;
+    padding: 16px;
+    margin: 16px 0;
     font-size: 12px;
     font-family: system-ui;
     color: #333;
+    position: relative;
   `;
 
   if (!metrics || !nutrientInfo) {
@@ -37,12 +39,6 @@ export function createMetricsElement(
   Object.entries(nutrientInfo).forEach(([key, value]) => {
     metricsElement.setAttribute(`data-${key}`, value);
   });
-
-  const labelMap: Record<keyof Metrics, string> = {
-    proteinPerCurrency: `Protein Per ${globalCurrency}`,
-    proteinToCarbRatio: 'Protein to Carb Ratio',
-    proteinPer100Calories: 'Protein per 100 calories',
-  };
 
   const metricOrder: (keyof Metrics)[] = [
     'proteinPerCurrency',
@@ -60,26 +56,43 @@ export function createMetricsElement(
   ];
 
   metricsElement.innerHTML = `
-    <div style="font-weight: bold; margin-bottom: 5px;">Protein Content Analysis</div>
+    <style>
+      ${createTooltipStyles()}
+      .section-title {
+        font-weight: bold;
+        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #tooltip-container {
+        position: relative;
+        display: inline-block;
+      }
+    </style>
+    <div class="section-title">
+      Protein Analysis
+      ${createTooltipHTML()}
+    </div>
     ${metricOrder
       .map(
         (key) => `
       <div>
-        ${labelMap[key]}:
+        ${formatLabel(key, globalCurrency)}:
         <span style="font-weight: bold; color: ${getColorForValue(
           metrics[key],
           COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
         )}">
-          ${metrics[key]}${key === 'proteinPerCurrency' && metrics[key] !== 'N/A' ? 'g' : ''}${
-          key === 'proteinPer100Calories' && metrics[key] !== 'N/A' ? 'g' : ''
-        }
+          ${metrics[key]}${
+          key === 'proteinPerCurrency' && metrics[key] !== 'N/A' ? `g/${globalCurrency}` : ''
+        }${key === 'proteinPer100Calories' && metrics[key] !== 'N/A' ? 'g' : ''}
         </span>
       </div>
     `
       )
       .join('')}
-    <div style="border-top: 1px solid #ddd; margin: 5px 0;"></div>
-    <div style="font-weight: bold; margin-bottom: 5px;">Nutrients per 100g</div>
+    <div style="border-top: 1px solid #ddd; margin: 10px 0;"></div>
+    <div class="section-title">Nutrients per 100g</div>
     ${nutrientOrder
       .map((key) =>
         nutrientInfo[key]
