@@ -5,7 +5,11 @@
     "@crxjs/vite-plugin": "^1.0.14",
     "@types/jsdom": "^21.1.7",
     "jsdom": "^24.1.1",
-    "standard-version": "^9.3.2",
+    "semantic-release": "^21.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^8.0.7",
+    "@semantic-release/commit-analyzer": "^9.0.2",
+    "@semantic-release/release-notes-generator": "^10.0.3",
     "typescript": "^4.5.4",
     "vite": "^2.9.15",
     "vitest": "^2.0.5"
@@ -17,7 +21,8 @@
     "build:firefox": "tsc && vite --config vite.config.firefox.ts build",
     "postbuild:firefox": "node scripts/firefox.postbuild.js",
     "preview": "vite preview",
-    "release": "standard-version",
-    "test": "vitest"
+    "test": "vitest",
+    "semantic-release": "semantic-release",
+    "release": "semantic-release"
   }
 }
