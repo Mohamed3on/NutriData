@@ -26,7 +26,7 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
   ];
 
   return (
-    <div className='bg-gray-100 border border-gray-300 rounded-lg p-4 my-4 font-sans text-sm text-gray-800 w-max'>
+    <div className='bg-gray-100 border border-gray-300 rounded-lg p-4 my-4 font-sans text-sm text-gray-800'>
       <div className='font-bold mb-2 flex items-center gap-2'>
         Protein Analysis
         <Tooltip />
