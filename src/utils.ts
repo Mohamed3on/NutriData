@@ -7,12 +7,6 @@ export const COLOR_THRESHOLDS: Record<string, ColorThresholds> = {
   proteinPer100Calories: { good: 10, bad: 3 },
 };
 
-const COLORS = {
-  red: [220, 53, 69],
-  yellow: [255, 193, 7],
-  green: [40, 167, 69],
-};
-
 export function interpolateColor(color1: number[], color2: number[], factor: number): number[] {
   return color1.map((channel, i) => Math.round(channel + factor * (color2[i] - channel)));
 }
@@ -21,15 +15,28 @@ export function getColorForValue(value: string, thresholds: ColorThresholds): st
   const numValue = parseFloat(value);
   if (isNaN(numValue)) return '';
 
-  let factor = (numValue - thresholds.bad) / (thresholds.good - thresholds.bad);
-  factor = Math.max(0, Math.min(1, factor));
+  const minValue = thresholds.bad;
+  const maxValue = thresholds.good;
+  const midValue = (minValue + maxValue) / 2;
 
-  const { red, yellow, green } = COLORS;
-  return `rgb(${interpolateColor(
-    factor < 0.5 ? red : yellow,
-    factor < 0.5 ? yellow : green,
-    factor < 0.5 ? factor * 2 : (factor - 0.5) * 2
-  )})`;
+  const red = [220, 38, 38]; // Tailwind red-600
+  const yellow = [202, 138, 4]; // Tailwind yellow-600
+  const green = [22, 163, 74]; // Tailwind green-600
+
+  let color: number[];
+  if (numValue <= minValue) {
+    color = red;
+  } else if (numValue >= maxValue) {
+    color = green;
+  } else if (numValue < midValue) {
+    const factor = (numValue - minValue) / (midValue - minValue);
+    color = interpolateColor(red, yellow, factor);
+  } else {
+    const factor = (numValue - midValue) / (maxValue - midValue);
+    color = interpolateColor(yellow, green, factor);
+  }
+
+  return `rgb(${color.join(',')})`;
 }
 
 export function formatLabel(key: string, currency: string | null = null): string {
@@ -38,7 +45,6 @@ export function formatLabel(key: string, currency: string | null = null): string
       return `Protein per ${currency}`;
     case 'proteinPer100Calories':
       return 'Protein per 100 Calories';
-    // ... other cases ...
     default:
       return (
         key.charAt(0).toUpperCase() +

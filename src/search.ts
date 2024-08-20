@@ -2,6 +2,7 @@ import { processAllProductCards } from './productProcessing';
 import { setupMutationObserver } from './observerSetup';
 import { createCustomSortSelect } from './domUtils';
 import { Metrics, NutrientInfo } from './types';
+import './index.css'; // Import the index.css file for Tailwind styles
 
 let customSortSelect: HTMLSelectElement | null = null;
 

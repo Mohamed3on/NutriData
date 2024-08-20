@@ -2,39 +2,9 @@ import React from 'react';
 
 export const Tooltip: React.FC = () => {
   return (
-    <div id='tooltip-container'>
-      <style>
-        {`
-          .tooltip-icon {
-            cursor: pointer;
-            color: #888;
-            font-size: 14px;
-          }
-          .tooltip-text {
-            visibility: hidden;
-            width: 200px;
-            background-color: #333;
-            color: #fff;
-            text-align: center;
-            border-radius: 6px;
-            padding: 8px;
-            position: absolute;
-            z-index: 1;
-            top: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 12px;
-          }
-          #tooltip-container:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-          }
-        `}
-      </style>
-      <span className='tooltip-icon'>ⓘ</span>
-      <span className='tooltip-text'>
+    <div className='relative inline-block group'>
+      <span className='cursor-pointer text-gray-500 text-sm'>ⓘ</span>
+      <span className='invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-300 absolute z-10 w-48 bg-gray-800 text-white text-xs rounded-md py-2 px-3 -left-24 bottom-full mb-2 text-center'>
         Data sourced directly from the product page. NutriData not responsible for any missing or
         inaccurate information.
       </span>

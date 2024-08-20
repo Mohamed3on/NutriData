@@ -19,6 +19,13 @@ export function createMetricsElement(
   metricsElement.className = 'nutri-data-metrics';
 
   if (metrics && nutrientInfo) {
+    Object.entries(metrics).forEach(([key, value]) => {
+      metricsElement.setAttribute(`data-${key}`, value);
+    });
+    Object.entries(nutrientInfo).forEach(([key, value]) => {
+      metricsElement.setAttribute(`data-${key}`, value);
+    });
+
     ReactDOM.render(<MetricsCard metrics={metrics} nutrientInfo={nutrientInfo} />, metricsElement);
   }
 

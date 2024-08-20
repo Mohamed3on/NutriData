@@ -26,31 +26,8 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
   ];
 
   return (
-    <div>
-      <style>
-        {`
-          .nutri-data-metrics {
-            background-color: #f8f8f8;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 16px;
-            margin: 16px 0;
-            font-size: 12px;
-            font-family: system-ui;
-            color: #333;
-            position: relative;
-            width: max-content;
-          }
-          .section-title {
-            font-weight: bold;
-            margin-bottom: 5px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-          }
-        `}
-      </style>
-      <div className='section-title'>
+    <div className='bg-gray-100 border border-gray-300 rounded-lg p-4 my-4 font-sans text-sm text-gray-800 w-max'>
+      <div className='font-bold mb-2 flex items-center gap-2'>
         Protein Analysis
         <Tooltip />
       </div>
@@ -59,12 +36,12 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
           {formatLabel(key, globalCurrency)}:{' '}
           <span
             style={{
-              fontWeight: 'bold',
               color: getColorForValue(
                 metrics[key],
                 COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
               ),
             }}
+            className={`font-bold`}
           >
             {metrics[key]}
             {key === 'proteinPerCurrency' && metrics[key] !== 'N/A' && `g/${globalCurrency}`}
@@ -72,14 +49,14 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
           </span>
         </div>
       ))}
-      <div style={{ borderTop: '1px solid #ddd', margin: '10px 0' }}></div>
-      <div className='section-title'>Nutrients per 100g</div>
+      <div className='border-t border-gray-300 my-2'></div>
+      <div className='font-bold mb-2'>Nutrients per 100g</div>
       {nutrientOrder.map(
         (key) =>
           nutrientInfo[key] && (
             <div key={key}>
               {key.charAt(0).toUpperCase() + key.slice(1)}:{' '}
-              <span style={{ fontWeight: 'bold' }}>{nutrientInfo[key]}</span>
+              <span className='font-bold'>{nutrientInfo[key]}</span>
             </div>
           )
       )}
