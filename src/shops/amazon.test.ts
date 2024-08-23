@@ -92,3 +92,30 @@ describe('amazonShop.getPriceAndWeightInfo', () => {
     expect(result.pricePerKg).toBeCloseTo(4.67, 2);
   });
 });
+
+describe('amazonShop.getNutrientInfo', () => {
+  it('correctly handles various nutrient value formats', () => {
+    const dom = new JSDOM(`
+      <table id="productDetails_techSpec_section_2">
+        <tr>
+          <th>Protein</th>
+          <td>< 0.1 g</td>
+        </tr>
+        <tr>
+          <th>Energy (kcal)</th>
+          <td>‎418.73 kcal</td>
+        </tr>
+        <tr>
+          <th>Carbohydrate</th>
+          <td>‎8,3 g</td>
+        </tr>
+      </table>
+    `);
+
+    const nutrientInfo = amazonShop.getNutrientInfo(dom.window.document);
+
+    expect(nutrientInfo.protein).toBe('0.1 g');
+    expect(nutrientInfo.calories).toBe('418.73 kcal');
+    expect(nutrientInfo.carbs).toBe('8.3 g');
+  });
+});

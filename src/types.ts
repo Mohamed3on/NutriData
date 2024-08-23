@@ -37,6 +37,9 @@ export interface Shop {
     sortSelect: string;
     productLink: string;
   };
+  createCustomSortSelect: (
+    onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
+  ) => HTMLSelectElement;
 }
 
 export interface CachedData {

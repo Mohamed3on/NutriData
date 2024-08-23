@@ -1,17 +1,18 @@
 import { processAllProductCards } from './productProcessing';
 import { setupMutationObserver } from './observerSetup';
-import { createCustomSortSelect } from './domUtils';
+
 import { Metrics, NutrientInfo } from './types';
 import './index.css';
+import { detectShop } from './utils';
 
 let customSortSelect: HTMLSelectElement | null = null;
 
 async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) {
-  const productList = document.querySelector('.search-service-rsTiles');
+  const shop = detectShop();
+  const productList = document.querySelector(shop.selectors.productList);
   if (!productList) return;
 
-  const productCards = Array.from(productList.querySelectorAll('.search-service-product'));
-
+  const productCards = Array.from(productList.querySelectorAll(shop.selectors.productCard));
   productCards.sort((a, b) => {
     const metricA = parseFloat(
       a.querySelector(`.nutri-data-metrics`)?.getAttribute(`data-${metric}`) || '0'
@@ -28,24 +29,53 @@ async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, asce
     return ascending ? metricA - metricB : metricB - metricA;
   });
 
-  productCards.forEach((card) => productList.appendChild(card));
+  if (shop.name === 'amazon') {
+    // Find the last 3 [data-index] elements
+    const dataIndexElements = Array.from(productList.querySelectorAll('[data-index]'));
+    const lastThreeDataIndexElements = dataIndexElements.slice(-3);
+
+    // Clear the product list
+    while (productList.firstChild) {
+      productList.removeChild(productList.firstChild);
+    }
+
+    // Reinsert the sorted product cards
+    productCards.forEach((card) => {
+      productList.appendChild(card);
+    });
+
+    // Append the last 3 [data-index] elements
+    lastThreeDataIndexElements.forEach((element) => {
+      productList.appendChild(element);
+    });
+  } else {
+    // For other shops, continue with the previous sorting method
+    while (productList.firstChild) {
+      productList.removeChild(productList.firstChild);
+    }
+    productCards.forEach((card) => {
+      productList.appendChild(card);
+    });
+  }
 }
 
 function removeAdElements() {
-  const adElements = document.querySelectorAll('rd-flagship');
+  const shop = detectShop();
+  const adElements = document.querySelectorAll(shop.selectors.adElement);
   adElements.forEach((element) => element.remove());
 }
 
 async function main() {
   try {
-    removeAdElements(); // Remove ad elements initially
+    const shop = detectShop();
+    removeAdElements();
     await processAllProductCards();
     setupMutationObserver();
 
     // Add custom sort select next to the existing one
-    const existingSelect = document.querySelector('#sorting') as HTMLSelectElement;
+    const existingSelect = document.querySelector(shop.selectors.sortSelect) as HTMLSelectElement;
     if (existingSelect) {
-      customSortSelect = createCustomSortSelect(sortProductCards);
+      customSortSelect = shop.createCustomSortSelect(sortProductCards);
       existingSelect.parentNode?.insertBefore(customSortSelect, existingSelect.nextSibling);
     }
   } catch (error) {

@@ -1,4 +1,5 @@
-import { NutrientInfo, PriceAndWeightInfo, Shop } from '../types';
+import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../types';
+import { createCustomSortSelect } from '../utils/createCustomSortSelect';
 
 const NUTRIENT_LABELS: Record<keyof NutrientInfo, string> = {
   protein: 'Eiweiß',
@@ -89,7 +90,15 @@ export const reweShop: Shop = {
       productDetails.style.height = 'auto';
     }
   },
-
+  createCustomSortSelect(
+    onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
+  ): HTMLSelectElement {
+    return createCustomSortSelect(
+      onSort,
+      'nutri-data-sort Select_rsSelect__qwGEE Select_rsSelectText__U_NgU',
+      { marginLeft: '10px' }
+    );
+  },
   selectors: {
     productLink: 'a.search-service-productDetailsLink',
     productList: '.search-service-rsTiles',

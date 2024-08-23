@@ -25,31 +25,42 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
     'fiber',
   ];
 
+  const hasProteinData = nutrientInfo.protein !== undefined;
+
   return (
     <div className='bg-gray-100 border border-gray-300 rounded-lg p-4 my-4 font-sans text-sm text-gray-800'>
-      <div className='font-bold mb-2 flex items-center gap-2'>
-        Protein Analysis
-        <Tooltip />
-      </div>
-      {metricOrder.map((key) => (
-        <div key={key}>
-          {formatLabel(key, globalCurrency)}:{' '}
-          <span
-            style={{
-              color: getColorForValue(
-                metrics[key],
-                COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
-              ),
-            }}
-            className={`font-bold`}
-          >
-            {metrics[key]}
-            {key === 'proteinPerCurrency' && metrics[key] !== 'N/A' && `g/${globalCurrency}`}
-            {key === 'proteinPer100Calories' && metrics[key] !== 'N/A' && 'g'}
-          </span>
-        </div>
-      ))}
-      <div className='border-t border-gray-300 my-2'></div>
+      {hasProteinData && (
+        <>
+          <div className='font-bold mb-2 flex items-center gap-2'>
+            Protein Analysis
+            <Tooltip />
+          </div>
+          {metricOrder.map(
+            (key) =>
+              metrics[key] !== undefined && (
+                <div key={key}>
+                  {formatLabel(key, globalCurrency)}:{' '}
+                  <span
+                    style={{
+                      color: getColorForValue(
+                        metrics[key],
+                        COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
+                      ),
+                    }}
+                    className={`font-bold`}
+                  >
+                    {metrics[key]}
+                    {key === 'proteinPerCurrency' &&
+                      metrics[key] !== 'N/A' &&
+                      `g/${globalCurrency}`}
+                    {key === 'proteinPer100Calories' && metrics[key] !== 'N/A' && 'g'}
+                  </span>
+                </div>
+              )
+          )}
+          <div className='border-t border-gray-300 my-2'></div>
+        </>
+      )}
       <div className='font-bold mb-2'>Nutrients per 100g</div>
       {nutrientOrder.map(
         (key) =>

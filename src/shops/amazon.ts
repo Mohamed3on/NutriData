@@ -1,5 +1,6 @@
 import { setGlobalCurrency } from '../globalState';
-import { NutrientInfo, PriceAndWeightInfo, Shop } from '../types';
+import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../types';
+import { createCustomSortSelect } from '../utils/createCustomSortSelect';
 
 const NUTRIENT_LABELS: Record<keyof NutrientInfo, string> = {
   protein: 'Protein',
@@ -22,13 +23,24 @@ export const amazonShop: Shop = {
       const valueCell = row.querySelector('td');
       if (labelCell && valueCell) {
         const label = labelCell.textContent?.trim();
-        const value = valueCell.textContent?.trim().replace('‎', '').split(' ')[0];
+        let value = valueCell.textContent?.trim().replace('‎', '');
+
         const nutrientKey = Object.keys(NUTRIENT_LABELS).find(
           (key) => NUTRIENT_LABELS[key as keyof NutrientInfo] === label
         ) as keyof NutrientInfo | undefined;
 
         if (nutrientKey && value) {
-          nutrientInfo[nutrientKey] = value;
+          // Extract numeric value and unit, including cases with '<'
+          const match = value.match(/^<?(?:\s*)(\d+(?:[,.]\d+)?)\s*(g|kcal)?/i);
+          if (match) {
+            let [, numericValue, unit] = match;
+            numericValue = numericValue.replace(',', '.');
+
+            // Preserve the unit if it exists
+            const displayValue = unit ? `${numericValue} ${unit}` : numericValue;
+
+            nutrientInfo[nutrientKey] = displayValue;
+          }
         }
       }
     });
@@ -93,12 +105,18 @@ export const amazonShop: Shop = {
     }
   },
 
+  createCustomSortSelect(
+    onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
+  ): HTMLSelectElement {
+    return createCustomSortSelect(onSort, 'nutri-data-sort', { marginTop: '10px' });
+  },
+
   selectors: {
     productLink:
       'a.a-link-normal.s-underline-text.s-underline-link-text.s-link-style.a-text-normal',
     productList: '.s-result-list.s-search-results',
     productCard: '[data-asin]:not([data-asin=""])[data-index]',
     adElement: '.AdHolder',
-    sortSelect: '#s-result-sort-select',
+    sortSelect: '.a-dropdown-container',
   },
 };

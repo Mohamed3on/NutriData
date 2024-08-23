@@ -4,14 +4,17 @@ export function calculateMetrics(
   nutrientInfo: NutrientInfo,
   priceAndWeightInfo: PriceAndWeightInfo
 ): Metrics {
-  const protein = parseFloat(nutrientInfo.protein) || 0;
+  const metrics: Partial<Metrics> = {};
+
+  const protein = parseFloat(nutrientInfo.protein);
+
+  if (isNaN(protein)) return metrics as Metrics;
+
   const carbs = parseFloat(nutrientInfo.carbs);
   const calories = nutrientInfo.calories
     ? parseFloat(nutrientInfo.calories.replace(/,/g, ''))
     : null;
   const { pricePerKg = null, weight = null, price = 0 } = priceAndWeightInfo;
-
-  const metrics: Partial<Metrics> = {};
 
   if (pricePerKg || (price > 0 && weight)) {
     metrics.proteinPerCurrency = calculateProteinPerCurrency(protein, price, weight, pricePerKg);
