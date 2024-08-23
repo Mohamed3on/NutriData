@@ -1,12 +1,13 @@
 import { NutrientInfo, Metrics } from './types';
 import { calculateMetrics } from './metrics';
-import { reweShop } from './shops/rewe';
 import { fetchProductData, createMetricsElement } from './domUtils';
 import { getCachedData, setCachedData } from './cacheUtils';
+import { detectShop } from './utils';
 
 // Main function to process all product cards
 export async function processAllProductCards(): Promise<void> {
-  const productCards = document.querySelectorAll('.search-service-product');
+  const shop = detectShop();
+  const productCards = document.querySelectorAll(shop.selectors.productCard);
   const promises = Array.from(productCards).map(processProductCard);
   await Promise.allSettled(promises);
 }
@@ -22,7 +23,9 @@ export async function processProductCard(card: Element): Promise<void> {
     const { nutrientInfo, metrics } = await getProductData(url);
     if (!nutrientInfo || !metrics) return;
 
-    insertMetricsIntoCard(card, metrics, nutrientInfo);
+    const metricsElement = createMetricsElement(metrics, nutrientInfo);
+    const shop = detectShop();
+    shop.insertMetricsIntoCard(card, metricsElement);
     adjustCardHeight(card);
   } catch (error) {
     console.error('Error processing product card:', error);
@@ -40,48 +43,40 @@ function isCardAlreadyProcessed(card: Element): boolean {
 }
 
 function getProductUrl(card: Element): string | null {
-  const link = card.querySelector('a.search-service-productDetailsLink');
+  const link = card.querySelector(detectShop().selectors.productLink);
   return link ? (link as HTMLAnchorElement).href : null;
 }
 
 async function getProductData(
   url: string
 ): Promise<{ nutrientInfo: NutrientInfo | null; metrics: Metrics | null }> {
-  const cachedData = await getCachedData(url);
+  const cleanUrl = new URL(url);
+  cleanUrl.search = '';
+
+  const cachedData = await getCachedData(cleanUrl.toString());
   if (cachedData) {
     return { nutrientInfo: cachedData.nutrientInfo, metrics: cachedData.metrics };
   }
 
   const doc = await fetchProductData(url);
-  const nutrientInfo = reweShop.getNutrientInfo(doc);
+  const nutrientInfo = detectShop().getNutrientInfo(doc);
 
   if (!nutrientInfo || Object.values(nutrientInfo).every((value) => value === '')) {
     console.log('Nutrient information not available for this product');
+    // Cache the "no nutrients available" result
+    await setCachedData(cleanUrl.toString(), {
+      nutrientInfo: null,
+      metrics: null,
+      timestamp: Date.now(),
+    });
     return { nutrientInfo: null, metrics: null };
   }
 
-  const priceAndWeightInfo = reweShop.getPriceAndWeightInfo(doc);
+  const priceAndWeightInfo = detectShop().getPriceAndWeightInfo(doc);
   const metrics = calculateMetrics(nutrientInfo, priceAndWeightInfo);
 
-  await setCachedData(url, { nutrientInfo, metrics, timestamp: Date.now() });
+  await setCachedData(cleanUrl.toString(), { nutrientInfo, metrics, timestamp: Date.now() });
   return { nutrientInfo, metrics };
-}
-
-function insertMetricsIntoCard(card: Element, metrics: Metrics, nutrientInfo: NutrientInfo): void {
-  const metricsElement = createMetricsElement(metrics, nutrientInfo);
-  const detailsWrapper = card.querySelector('.search-service-productDetailsWrapper');
-  const grammageElement = detailsWrapper?.querySelector('.search-service-productGrammage');
-
-  if (grammageElement && grammageElement.parentNode) {
-    grammageElement.parentNode.insertBefore(metricsElement, grammageElement.nextSibling);
-  } else if (detailsWrapper) {
-    detailsWrapper.appendChild(metricsElement);
-  }
-
-  const productDetails = card.querySelector('.ProductDetailsWrapper_productDetails__7vI_z');
-  if (productDetails instanceof HTMLElement) {
-    productDetails.style.height = 'auto';
-  }
 }
 
 function adjustCardHeight(card: Element): void {

@@ -73,4 +73,28 @@ export const reweShop: Shop = {
   getInsertionPoint(element: HTMLElement): HTMLElement | null {
     return element.querySelector('.bs_add2cart_container');
   },
+
+  insertMetricsIntoCard(card: Element, metricsElement: HTMLElement): void {
+    const detailsWrapper = card.querySelector('.search-service-productDetailsWrapper');
+    const grammageElement = detailsWrapper?.querySelector('.search-service-productGrammage');
+
+    if (grammageElement && grammageElement.parentNode) {
+      grammageElement.parentNode.insertBefore(metricsElement, grammageElement.nextSibling);
+    } else if (detailsWrapper) {
+      detailsWrapper.appendChild(metricsElement);
+    }
+
+    const productDetails = card.querySelector('.ProductDetailsWrapper_productDetails__7vI_z');
+    if (productDetails instanceof HTMLElement) {
+      productDetails.style.height = 'auto';
+    }
+  },
+
+  selectors: {
+    productLink: 'a.search-service-productDetailsLink',
+    productList: '.search-service-rsTiles',
+    productCard: '.search-service-product',
+    adElement: 'rd-flagship',
+    sortSelect: '#sorting',
+  },
 };

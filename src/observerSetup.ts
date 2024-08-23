@@ -1,7 +1,8 @@
+import { detectShop } from './utils';
 import { processProductCard } from './productProcessing';
 
 export function setupMutationObserver(): void {
-  const targetNode = document.querySelector('.search-service-rsTiles');
+  const targetNode = document.querySelector(detectShop().selectors.productList);
   if (!targetNode) {
     console.log('This page is probably not a product list page. Aborting observer setup.');
     return;

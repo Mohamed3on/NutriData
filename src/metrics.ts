@@ -11,9 +11,11 @@ export function calculateMetrics(
     : null;
   const { pricePerKg = null, weight = null, price = 0 } = priceAndWeightInfo;
 
-  const metrics: Partial<Metrics> = {
-    proteinPerCurrency: calculateProteinPerCurrency(protein, price, weight, pricePerKg),
-  };
+  const metrics: Partial<Metrics> = {};
+
+  if (pricePerKg || (price > 0 && weight)) {
+    metrics.proteinPerCurrency = calculateProteinPerCurrency(protein, price, weight, pricePerKg);
+  }
 
   if (!isNaN(carbs)) {
     metrics.proteinToCarbRatio = calculateRatio(protein, carbs);

@@ -1,16 +1,8 @@
 import { Shop } from './types';
 import { calculateMetrics } from './metrics';
 import { createInfoElement } from './ui';
-import { reweShop } from './shops/rewe';
-import { amazonShop } from './shops/amazon';
 import './index.css';
-
-const shops: Shop[] = [reweShop, amazonShop];
-
-function detectShop(): Shop | null {
-  const hostname = window.location.hostname;
-  return shops.find((shop) => hostname.includes(shop.name)) || null;
-}
+import { detectShop } from './utils';
 
 async function displayInfo(shop: Shop) {
   const doc = document;

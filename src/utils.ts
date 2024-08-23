@@ -1,4 +1,6 @@
-import { ColorThresholds } from './types';
+import { amazonShop } from './shops/amazon';
+import { reweShop } from './shops/rewe';
+import { ColorThresholds, Shop } from './types';
 
 // source: i made them up
 export const COLOR_THRESHOLDS: Record<string, ColorThresholds> = {
@@ -54,4 +56,10 @@ export function formatLabel(key: string, currency: string | null = null): string
           .trim()
       );
   }
+}
+
+export function detectShop(): Shop {
+  const hostname = window.location.hostname;
+  if (hostname.includes('amazon')) return amazonShop;
+  return reweShop;
 }

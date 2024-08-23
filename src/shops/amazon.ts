@@ -12,6 +12,7 @@ const NUTRIENT_LABELS: Record<keyof NutrientInfo, string> = {
 
 export const amazonShop: Shop = {
   name: 'amazon',
+
   getNutrientInfo(doc: Document): NutrientInfo {
     const table = doc.querySelector('#productDetails_techSpec_section_2');
     const nutrientInfo: Partial<NutrientInfo> = {};
@@ -55,19 +56,18 @@ export const amazonShop: Shop = {
         detectedCurrency = currency as '€' | '£';
         const price = parseFloat(value.replace(',', '.'));
         const quantity = amount ? parseFloat(amount.replace(',', '.')) : 1;
+        const unitLower = unit.toLowerCase();
 
-        if (
-          unit.toLowerCase() === 'g' ||
-          unit.toLowerCase() === 'gram' ||
-          unit.toLowerCase() === 'grams'
-        ) {
-          pricePerKg = (price / quantity) * 1000;
-        } else if (
-          unit.toLowerCase() === 'kg' ||
-          unit.toLowerCase() === 'kilo' ||
-          unit.toLowerCase() === 'kilos'
-        ) {
-          pricePerKg = price / quantity;
+        const conversionFactor = ['g', 'gram', 'grams', 'ml', 'milliliter', 'milliliters'].includes(
+          unitLower
+        )
+          ? 1000
+          : ['kg', 'kilo', 'kilos', 'l', 'liter', 'liters'].includes(unitLower)
+          ? 1
+          : 0;
+
+        if (conversionFactor) {
+          pricePerKg = (price / quantity) * conversionFactor;
         }
       }
     }
@@ -81,5 +81,24 @@ export const amazonShop: Shop = {
 
   getInsertionPoint(element: HTMLElement): HTMLElement | null {
     return element.querySelector('#imageBlock');
+  },
+
+  insertMetricsIntoCard(card: Element, metricsElement: HTMLElement): void {
+    const priceElement = card.querySelector('.a-price');
+    if (priceElement && priceElement.parentNode) {
+      priceElement.parentNode.insertBefore(metricsElement, priceElement.nextSibling);
+    } else {
+      // Fallback: append to the card if we can't find the price element
+      card.appendChild(metricsElement);
+    }
+  },
+
+  selectors: {
+    productLink:
+      'a.a-link-normal.s-underline-text.s-underline-link-text.s-link-style.a-text-normal',
+    productList: '.s-result-list.s-search-results',
+    productCard: '[data-asin]:not([data-asin=""])[data-index]',
+    adElement: '.AdHolder',
+    sortSelect: '#s-result-sort-select',
   },
 };

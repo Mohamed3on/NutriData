@@ -29,10 +29,18 @@ export interface Shop {
   getNutrientInfo: (doc: Document) => NutrientInfo;
   getPriceAndWeightInfo: (doc: Document) => PriceAndWeightInfo;
   getInsertionPoint: (element: HTMLElement) => HTMLElement | null;
+  insertMetricsIntoCard: (card: Element, metricsElement: HTMLElement) => void;
+  selectors: {
+    productList: string;
+    productCard: string;
+    adElement: string;
+    sortSelect: string;
+    productLink: string;
+  };
 }
 
 export interface CachedData {
-  nutrientInfo: NutrientInfo;
-  metrics: Metrics;
+  nutrientInfo: NutrientInfo | null;
+  metrics: Metrics | null;
   timestamp: number;
 }
