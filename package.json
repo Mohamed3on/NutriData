@@ -1,6 +1,6 @@
 {
   "name": "nutridata",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.0",
     "class-variance-authority": "^0.7.0",
