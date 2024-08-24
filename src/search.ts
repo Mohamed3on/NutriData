@@ -68,15 +68,25 @@ function removeAdElements() {
 async function main() {
   try {
     const shop = detectShop();
-    removeAdElements();
-    await processAllProductCards();
-    setupMutationObserver();
+    const isSearchPage = !!document.querySelector(shop.selectors.productList);
+    if (isSearchPage) {
+      removeAdElements();
+      await processAllProductCards();
+      setupMutationObserver();
 
-    // Add custom sort select next to the existing one
-    const existingSelect = document.querySelector(shop.selectors.sortSelect) as HTMLSelectElement;
-    if (existingSelect) {
-      customSortSelect = shop.createCustomSortSelect(sortProductCards);
-      existingSelect.parentNode?.insertBefore(customSortSelect, existingSelect.nextSibling);
+      // Check if there's a metrics card on the page
+      const hasMetricsCard = !!document.querySelector('.nutri-data-metrics');
+
+      if (hasMetricsCard) {
+        // Add custom sort select next to the existing one
+        const existingSelect = document.querySelector(
+          shop.selectors.sortSelect
+        ) as HTMLSelectElement;
+        if (existingSelect) {
+          customSortSelect = shop.createCustomSortSelect(sortProductCards);
+          existingSelect.parentNode?.insertBefore(customSortSelect, existingSelect.nextSibling);
+        }
+      }
     }
   } catch (error) {
     console.error('Error in main function:', error);
