@@ -3,7 +3,7 @@ import { setupMutationObserver } from './observerSetup';
 
 import { Metrics, NutrientInfo } from './types';
 import './index.css';
-import { detectShop } from './utils';
+import { detectShop } from './shops/detectShop';
 
 let customSortSelect: HTMLSelectElement | null = null;
 

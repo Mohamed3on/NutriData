@@ -1,13 +1,16 @@
 import React from 'react';
 import { Metrics, NutrientInfo } from '../types';
 import { COLOR_THRESHOLDS, getColorForValue, formatLabel } from '../utils';
-import { globalCurrency } from '../globalState';
+import { detectShop } from '../shops/detectShop';
+
 import { Tooltip } from './Tooltip';
 
 interface MetricsCardProps {
   metrics: Metrics;
   nutrientInfo: NutrientInfo;
 }
+
+const shop = detectShop();
 
 export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo }) => {
   const metricOrder: (keyof Metrics)[] = [
@@ -39,7 +42,7 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
             (key) =>
               metrics[key] !== undefined && (
                 <div key={key}>
-                  {formatLabel(key, globalCurrency)}:{' '}
+                  {formatLabel(key, shop.currency)}:{' '}
                   <span
                     style={{
                       color: getColorForValue(
@@ -50,9 +53,7 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
                     className={`font-bold`}
                   >
                     {metrics[key]}
-                    {key === 'proteinPerCurrency' &&
-                      metrics[key] !== 'N/A' &&
-                      `g/${globalCurrency}`}
+                    {key === 'proteinPerCurrency' && metrics[key] !== 'N/A' && `g/${shop.currency}`}
                     {key === 'proteinPer100Calories' && metrics[key] !== 'N/A' && 'g'}
                   </span>
                 </div>

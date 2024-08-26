@@ -2,7 +2,7 @@ import { NutrientInfo, Metrics } from './types';
 import { calculateMetrics } from './metrics';
 import { fetchProductData, createMetricsElement } from './domUtils';
 import { getCachedData, setCachedData } from './cacheUtils';
-import { detectShop } from './utils';
+import { detectShop } from './shops/detectShop';
 
 // Main function to process all product cards
 export async function processAllProductCards(): Promise<void> {

@@ -12,6 +12,7 @@ const NUTRIENT_LABELS: Record<keyof NutrientInfo, string> = {
 
 export const reweShop: Shop = {
   name: 'rewe',
+  currency: '€',
   getNutrientInfo(doc: Document): NutrientInfo {
     const table = doc.querySelector('.pdpr-NutritionTable');
     const nutrientInfo: Partial<NutrientInfo> = {};
@@ -96,7 +97,8 @@ export const reweShop: Shop = {
     return createCustomSortSelect(
       onSort,
       'nutri-data-sort Select_rsSelect__qwGEE Select_rsSelectText__U_NgU',
-      { marginLeft: '10px' }
+      { marginLeft: '10px' },
+      this.currency
     );
   },
   selectors: {

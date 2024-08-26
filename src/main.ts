@@ -2,7 +2,7 @@ import { Shop } from './types';
 import { calculateMetrics } from './metrics';
 import { createInfoElement } from './ui';
 import './index.css';
-import { detectShop } from './utils';
+import { detectShop } from './shops/detectShop';
 
 async function displayInfo(shop: Shop) {
   const doc = document;

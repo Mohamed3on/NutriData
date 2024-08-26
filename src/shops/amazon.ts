@@ -1,5 +1,5 @@
-import { setGlobalCurrency } from '../globalState';
-import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../types';
+import { Metrics, NutrientInfo, PriceAndWeightInfo } from '../types';
+import { Shop } from '../types/shop';
 import { createCustomSortSelect } from '../utils/createCustomSortSelect';
 
 const NUTRIENT_LABELS: Record<keyof NutrientInfo, string> = {
@@ -13,7 +13,7 @@ const NUTRIENT_LABELS: Record<keyof NutrientInfo, string> = {
 
 export const amazonShop: Shop = {
   name: 'amazon',
-
+  currency: window.location.hostname.includes('amazon.de') ? '€' : '£',
   getNutrientInfo(doc: Document): NutrientInfo {
     const table = doc.querySelector('#productDetails_techSpec_section_2');
     const nutrientInfo: Partial<NutrientInfo> = {};
@@ -50,7 +50,6 @@ export const amazonShop: Shop = {
 
   getPriceAndWeightInfo(doc: Document): PriceAndWeightInfo {
     let pricePerKg: number | null = null;
-    let detectedCurrency: '€' | '£' | null = null;
 
     // Try to find the pricePerUnit element first
     const pricePerUnitElement = doc.querySelector('.pricePerUnit');
@@ -61,11 +60,10 @@ export const amazonShop: Shop = {
 
     if (alternativeElement) {
       const pricePerUnitText = alternativeElement.textContent?.trim() || '';
-      const match = pricePerUnitText.match(/([£€])([\d,.]+)\s*\/\s*([\d,.]+)?\s*([a-zA-Z]+)/);
+      const match = pricePerUnitText.match(/([\d,.]+)\s*\/\s*([\d,.]+)?\s*([a-zA-Z]+)/);
 
       if (match) {
-        const [, currency, value, amount, unit] = match;
-        detectedCurrency = currency as '€' | '£';
+        const [, value, amount, unit] = match;
         const price = parseFloat(value.replace(',', '.'));
         const quantity = amount ? parseFloat(amount.replace(',', '.')) : 1;
         const unitLower = unit.toLowerCase();
@@ -82,10 +80,6 @@ export const amazonShop: Shop = {
           pricePerKg = (price / quantity) * conversionFactor;
         }
       }
-    }
-
-    if (detectedCurrency) {
-      setGlobalCurrency(detectedCurrency);
     }
 
     return { pricePerKg };
@@ -108,7 +102,7 @@ export const amazonShop: Shop = {
   createCustomSortSelect(
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
   ): HTMLSelectElement {
-    return createCustomSortSelect(onSort, 'nutri-data-sort', { marginTop: '10px' });
+    return createCustomSortSelect(onSort, 'nutri-data-sort', { marginTop: '10px' }, this.currency);
   },
 
   selectors: {

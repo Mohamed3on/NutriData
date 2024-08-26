@@ -1,4 +1,4 @@
-import { detectShop } from './utils';
+import { detectShop } from './shops/detectShop';
 import { processProductCard } from './productProcessing';
 
 export function setupMutationObserver(): void {

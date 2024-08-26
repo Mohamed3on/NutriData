@@ -1,10 +1,11 @@
-import { globalCurrency } from '../globalState';
 import { Metrics, NutrientInfo } from '../types';
+import { Shop } from '../types/shop';
 
 export function createCustomSortSelect(
   onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void,
   className: string,
-  styles: Partial<CSSStyleDeclaration>
+  styles: Partial<CSSStyleDeclaration>,
+  shopCurrency: Shop['currency']
 ): HTMLSelectElement {
   const customSelect = document.createElement('select');
   customSelect.className = className;
@@ -16,7 +17,7 @@ export function createCustomSortSelect(
   customSelect.appendChild(defaultOption);
 
   const metricOptions: [keyof Metrics | keyof NutrientInfo, string, boolean][] = [
-    ['proteinPerCurrency', `Protein per ${globalCurrency} (High to Low)`, false],
+    ['proteinPerCurrency', `Protein per ${shopCurrency} (High to Low)`, false],
     ['proteinPer100Calories', 'Protein per 100 Calories (High to Low)', false],
     ['proteinToCarbRatio', 'Protein to Carb Ratio (High to Low)', false],
     ['protein', 'Protein (High to Low)', false],
