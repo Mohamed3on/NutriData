@@ -59,7 +59,7 @@ async function getProductData(
   }
 
   const doc = await fetchProductData(url);
-  const nutrientInfo = detectShop().getNutrientInfo(doc);
+  const nutrientInfo = await detectShop().getNutrientInfo(doc);
 
   if (!nutrientInfo || Object.values(nutrientInfo).every((value) => value === '')) {
     console.log('Nutrient information not available for this product');

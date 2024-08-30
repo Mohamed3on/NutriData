@@ -42,7 +42,7 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
             (key) =>
               metrics[key] !== undefined && (
                 <div key={key}>
-                  {formatLabel(key, shop.currency)}:{' '}
+                  {formatLabel(key, shop.getCurrency(window.location.href))}:{' '}
                   <span
                     style={{
                       color: getColorForValue(
@@ -53,7 +53,9 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
                     className={`font-bold`}
                   >
                     {metrics[key]}
-                    {key === 'proteinPerCurrency' && metrics[key] !== 'N/A' && `g/${shop.currency}`}
+                    {key === 'proteinPerCurrency' &&
+                      metrics[key] !== 'N/A' &&
+                      `g/${shop.getCurrency(window.location.href)}`}
                     {key === 'proteinPer100Calories' && metrics[key] !== 'N/A' && 'g'}
                   </span>
                 </div>

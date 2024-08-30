@@ -1,20 +1,23 @@
-import { Metrics, NutrientInfo, PriceAndWeightInfo } from '../types';
-import { Shop } from '../types/shop';
-import { createCustomSortSelect } from '../utils/createCustomSortSelect';
+import { Metrics, NutrientInfo, PriceAndWeightInfo } from '../../types';
+import { Shop } from '../../types/shop';
+import { createCustomSortSelect } from '../../utils/createCustomSortSelect';
 
-const NUTRIENT_LABELS: Record<keyof NutrientInfo, string> = {
+const NUTRIENT_LABELS: Partial<Record<keyof NutrientInfo, string>> = {
   protein: 'Protein',
   carbs: 'Carbohydrate',
   sugar: '- Sugars',
   fat: 'Fat',
   calories: 'Energy (kcal)',
   fiber: 'Fibre',
+  sodium: 'Sodium',
 };
 
 export const amazonShop: Shop = {
   name: 'amazon',
-  currency: window.location.hostname.includes('amazon.de') ? '€' : '£',
-  getNutrientInfo(doc: Document): NutrientInfo {
+  getCurrency(url: string): string {
+    return url.includes('amazon.de') ? '€' : '£';
+  },
+  async getNutrientInfo(doc: Document): Promise<NutrientInfo> {
     const table = doc.querySelector('#productDetails_techSpec_section_2');
     const nutrientInfo: Partial<NutrientInfo> = {};
 
@@ -45,7 +48,7 @@ export const amazonShop: Shop = {
       }
     });
 
-    return nutrientInfo as NutrientInfo;
+    return Promise.resolve(nutrientInfo as NutrientInfo);
   },
 
   getPriceAndWeightInfo(doc: Document): PriceAndWeightInfo {
@@ -102,7 +105,12 @@ export const amazonShop: Shop = {
   createCustomSortSelect(
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
   ): HTMLSelectElement {
-    return createCustomSortSelect(onSort, 'nutri-data-sort', { marginTop: '10px' }, this.currency);
+    return createCustomSortSelect(
+      onSort,
+      'nutri-data-sort',
+      { marginTop: '10px' },
+      this.getCurrency(window.location.href)
+    );
   },
 
   selectors: {

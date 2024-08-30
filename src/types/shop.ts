@@ -2,8 +2,8 @@ import { Metrics, NutrientInfo, PriceAndWeightInfo } from '../types';
 
 export interface Shop {
   name: string;
-  currency: '€' | '£';
-  getNutrientInfo: (doc: Document) => NutrientInfo;
+  getCurrency: (url: string) => string;
+  getNutrientInfo: (doc: Document) => Promise<NutrientInfo>;
   getPriceAndWeightInfo: (doc: Document) => PriceAndWeightInfo;
   getInsertionPoint: (element: HTMLElement) => HTMLElement | null;
   insertMetricsIntoCard: (card: Element, metricsElement: HTMLElement) => void;

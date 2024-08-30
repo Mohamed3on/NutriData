@@ -5,16 +5,15 @@ import './index.css';
 import { detectShop } from './shops/detectShop';
 
 async function displayInfo(shop: Shop) {
-  const doc = document;
-  const nutrientInfo = shop.getNutrientInfo(doc);
+  const nutrientInfo = await shop.getNutrientInfo(document);
 
   if (!nutrientInfo || Object.values(nutrientInfo).every((value) => value === '')) {
     console.log('Nutrient information not available');
     return;
   }
 
-  const priceAndWeightInfo = shop.getPriceAndWeightInfo(doc);
-  const insertionPoint = shop.getInsertionPoint(doc.body);
+  const priceAndWeightInfo = shop.getPriceAndWeightInfo(document);
+  const insertionPoint = shop.getInsertionPoint(document.body);
 
   if (!insertionPoint) {
     console.log('Insertion point not found, probably because the page is not loaded yet');

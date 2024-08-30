@@ -37,10 +37,13 @@ function calculateProteinPerCurrency(
   weight: number | null,
   pricePerKg: number | null
 ): string {
+  if (pricePerKg) {
+    return ((protein * 10) / pricePerKg).toFixed(1);
+  }
   if (weight && price > 0) {
     return ((protein * weight) / (100 * price)).toFixed(1);
   }
-  return pricePerKg ? ((protein * 10) / pricePerKg).toFixed(1) : 'N/A';
+  return 'N/A';
 }
 
 function calculateRatio(numerator: number, denominator: number): string {
