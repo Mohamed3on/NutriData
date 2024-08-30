@@ -1,6 +1,6 @@
 {
   "name": "nutridata",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.0",
     "@supabase/supabase-js": "^2.45.2",
