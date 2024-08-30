@@ -104,7 +104,6 @@ const saveDataToDb = async (doc: Document, nutritionalData: NutrientInfo) => {
 
 export const reweShop: Shop = {
   name: 'rewe',
-
   getCurrency(): '€' | '£' {
     return '€';
   },
