@@ -1,4 +1,4 @@
-name: Build, Approve, and Release for Chrome and Firefox
+name: Build and Release for Chrome and Firefox
 
 on:
   push:
@@ -46,25 +46,8 @@ jobs:
             build-chrome.zip
             build-firefox.zip
 
-  approve:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      contents: read
-    steps:
-      - name: Manual Approval
-        uses: trstringer/manual-approval@v1
-        with:
-          secret: ${{ secrets.GITHUB_TOKEN }}
-          approvers: Mohamed3on
-          minimum-approvals: 1
-          issue-title: 'Approve release of version ${{ github.sha }}'
-          issue-body: "Please approve this release by commenting '/approve' on this issue."
-          exclude-workflow-initiator-as-approver: false
-
   release:
-    needs: approve
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -98,12 +81,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          version=$(node -p "require('./package.json').version")
           for asset in build-chrome.zip build-firefox.zip; do
-            gh release upload "v$(node -p "require('./package.json').version")" $asset --clobber
+            gh release upload "v$version" $asset --clobber
           done
 
   rollback:
-    needs: [approve, release]
+    needs: release
     runs-on: ubuntu-latest
     if: failure()
     steps:
