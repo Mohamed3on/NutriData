@@ -1,4 +1,4 @@
-import { Shop } from '../types/shop';
+import { Shop } from '../types';
 import { amazonShop } from './amazon/amazon';
 import { reweShop } from './rewe/rewe';
 

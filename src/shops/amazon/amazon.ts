@@ -1,5 +1,5 @@
-import { Metrics, NutrientInfo, PriceAndWeightInfo } from '../../types';
-import { Shop } from '../../types/shop';
+import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../../types';
+
 import { createCustomSortSelect } from '../../utils/createCustomSortSelect';
 
 const NUTRIENT_LABELS: Partial<Record<keyof NutrientInfo, string>> = {
@@ -14,8 +14,8 @@ const NUTRIENT_LABELS: Partial<Record<keyof NutrientInfo, string>> = {
 
 export const amazonShop: Shop = {
   name: 'amazon',
-  getCurrency(url: string): string {
-    return url.includes('amazon.de') ? '€' : '£';
+  getCurrency(url?: string): '€' | '£' {
+    return url?.includes('amazon.de') ? '€' : '£';
   },
   async getNutrientInfo(doc: Document): Promise<NutrientInfo> {
     const table = doc.querySelector('#productDetails_techSpec_section_2');

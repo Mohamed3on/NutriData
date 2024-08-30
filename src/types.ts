@@ -28,7 +28,7 @@ export interface ColorThresholds {
 
 export interface Shop {
   name: string;
-  getCurrency: (url: string) => string;
+  getCurrency: (url?: string) => '€' | '£';
   getNutrientInfo: (doc: Document) => Promise<NutrientInfo>;
   getPriceAndWeightInfo: (doc: Document) => PriceAndWeightInfo;
   getInsertionPoint: (element: HTMLElement) => HTMLElement | null;

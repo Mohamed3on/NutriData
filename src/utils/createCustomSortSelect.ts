@@ -1,11 +1,10 @@
 import { Metrics, NutrientInfo } from '../types';
-import { Shop } from '../types/shop';
 
 export function createCustomSortSelect(
   onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void,
   className: string,
   styles: Partial<CSSStyleDeclaration>,
-  shopCurrency: Shop['currency']
+  shopCurrency: '€' | '£'
 ): HTMLSelectElement {
   const customSelect = document.createElement('select');
   customSelect.className = className;

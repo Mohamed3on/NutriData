@@ -40,6 +40,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "semantic-release": "semantic-release",
-    "release": "semantic-release"
+    "release": "semantic-release",
+    "tsc": "tsc"
   }
 }
