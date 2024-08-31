@@ -42,7 +42,7 @@ export interface Shop {
   };
   createCustomSortSelect: (
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
-  ) => HTMLSelectElement;
+  ) => React.ReactElement;
 }
 
 export interface CachedData {

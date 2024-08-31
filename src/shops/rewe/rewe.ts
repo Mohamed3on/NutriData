@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../../types';
-import { createCustomSortSelect } from '../../utils/createCustomSortSelect';
+import { createCustomSortSelectElement } from '../../utils/createCustomSortSelect';
 import { Database, Json } from '../../database.types';
 import { ProductData } from './ProductData';
 
@@ -111,8 +111,6 @@ export const reweShop: Shop = {
     const productData = getProductData(doc);
     if (productData) {
       try {
-        console.log(productData);
-
         const nutritionalData: NutrientInfo =
           productData.nutritionFacts[0]?.nutrientInformation.reduce((acc, fact) => {
             const key = fact.nutrientType.code.toLowerCase();
@@ -187,11 +185,10 @@ export const reweShop: Shop = {
   },
   createCustomSortSelect(
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
-  ): HTMLSelectElement {
-    return createCustomSortSelect(
+  ): React.ReactElement {
+    return createCustomSortSelectElement(
       onSort,
-      'nutri-data-sort Select_rsSelect__qwGEE Select_rsSelectText__U_NgU',
-      { marginLeft: '10px' },
+      'nutri-data-sort ml-2',
       this.getCurrency(window.location.href)
     );
   },

@@ -4,8 +4,7 @@ import { setupMutationObserver } from './observerSetup';
 import { Metrics, NutrientInfo } from './types';
 import './index.css';
 import { detectShop } from './shops/detectShop';
-
-let customSortSelect: HTMLSelectElement | null = null;
+import { createRoot } from 'react-dom/client';
 
 async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) {
   const shop = detectShop();
@@ -78,13 +77,18 @@ async function main() {
       const hasMetricsCard = !!document.querySelector('.nutri-data-metrics');
 
       if (hasMetricsCard) {
-        // Add custom sort select next to the existing one
         const existingSelect = document.querySelector(
           shop.selectors.sortSelect
         ) as HTMLSelectElement;
         if (existingSelect) {
-          customSortSelect = shop.createCustomSortSelect(sortProductCards);
-          existingSelect.parentNode?.insertBefore(customSortSelect, existingSelect.nextSibling);
+          const customSortSelectContainer = document.createElement('div');
+          existingSelect.parentNode?.insertBefore(
+            customSortSelectContainer,
+            existingSelect.nextSibling
+          );
+
+          const root = createRoot(customSortSelectContainer);
+          root.render(shop.createCustomSortSelect(sortProductCards));
         }
       }
     }

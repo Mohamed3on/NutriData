@@ -1,6 +1,6 @@
 import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../../types';
 
-import { createCustomSortSelect } from '../../utils/createCustomSortSelect';
+import { createCustomSortSelectElement } from '../../utils/createCustomSortSelect';
 
 const NUTRIENT_LABELS: Partial<Record<keyof NutrientInfo, string>> = {
   protein: 'Protein',
@@ -104,11 +104,10 @@ export const amazonShop: Shop = {
 
   createCustomSortSelect(
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
-  ): HTMLSelectElement {
-    return createCustomSortSelect(
+  ): React.ReactElement {
+    return createCustomSortSelectElement(
       onSort,
-      'nutri-data-sort',
-      { marginTop: '10px' },
+      'nutri-data-sort mt-4',
       this.getCurrency(window.location.href)
     );
   },
