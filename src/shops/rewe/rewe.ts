@@ -39,34 +39,35 @@ const getProductData = (doc: Document): ProductData | null => {
 const getRewePriceAndWeightInfo = (data: ProductData): PriceAndWeightInfo => {
   const price = data.pricing.price / 100; // Convert cents to euros
   const weight = data.packaging.weightPerPiece;
-  const pricePerKg = (() => {
-    const grammage = data.pricing.grammage;
-    if (grammage === '1l' || grammage === '1kg') {
-      return price;
-    }
+  const { grammage } = data.pricing;
 
-    const match = grammage.match(/(\d+(?:,\d+)?)\s*([a-zA-Z]+)\s*=\s*([\d,]+)\s*€/);
-    if (match) {
-      const [, amount, unit, priceStr] = match;
-      const amountValue = parseFloat(amount.replace(',', '.'));
-      const priceValue = parseFloat(priceStr.replace(',', '.'));
-      switch (unit.toLowerCase()) {
-        case 'kg':
-          return priceValue;
-        case 'g':
-          return (priceValue / amountValue) * 1000;
-        case 'l':
-        case 'liter':
-        case 'litre':
-          return priceValue;
+  if (['1l', '1kg'].includes(grammage)) {
+    return { price, weight, pricePerKg: price };
+  }
 
-        default:
-          return null;
-      }
-    }
+  const match = grammage.match(/(\d+(?:,\d+)?)\s*([a-zA-Z]+)\s*=\s*([\d,]+)\s*€/);
+  if (!match) {
+    return { price, weight, pricePerKg: null };
+  }
 
-    return null;
-  })();
+  const [, amount, unit, priceStr] = match;
+  const amountValue = parseFloat(amount.replace(',', '.'));
+  const priceValue = parseFloat(priceStr.replace(',', '.'));
+
+  let pricePerKg: number | null = null;
+  switch (unit.toLowerCase()) {
+    case 'kg':
+      pricePerKg = priceValue;
+      break;
+    case 'g':
+      pricePerKg = (priceValue / amountValue) * 1000;
+      break;
+    case 'l':
+    case 'liter':
+    case 'litre':
+      pricePerKg = priceValue;
+      break;
+  }
 
   return { price, weight, pricePerKg };
 };
