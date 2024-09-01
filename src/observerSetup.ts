@@ -13,11 +13,16 @@ export function setupMutationObserver(): void {
     subtree: true,
   };
 
-  // Set to keep track of elements currently being processed
-  const inProgressElements = new Set<HTMLElement>();
-
+  let isSortSelectListenerAdded = false;
   const observer = new MutationObserver((mutations) => {
-    let newCardAdded = false;
+    const sortSelect = document.querySelector('#sorting') as HTMLSelectElement;
+    if (sortSelect && !isSortSelectListenerAdded) {
+      sortSelect.addEventListener('change', updateKey);
+      isSortSelectListenerAdded = true;
+    }
+
+    // Set to keep track of elements currently being processed
+    const inProgressElements = new Set<HTMLElement>();
 
     mutations.forEach((mutation) => {
       if (mutation.type === 'childList') {
@@ -25,8 +30,6 @@ export function setupMutationObserver(): void {
           if (node instanceof HTMLElement && node.classList.contains('search-service-product')) {
             // Check if the element has not been processed yet
             if (!node.hasAttribute('data-nutridata-processed')) {
-              newCardAdded = true;
-              console.log(node.querySelector('.LinesEllipsis')?.textContent);
               inProgressElements.add(node);
               processProductCard(node)
                 .then(() => {
@@ -41,15 +44,15 @@ export function setupMutationObserver(): void {
         });
       }
     });
-    // Reset the sorting select if different products were added
-    if (newCardAdded) {
-      const customSortSelect = document.querySelector('.nutri-data-sort') as HTMLSelectElement;
-      if (customSortSelect) {
-        customSortSelect.value = '';
-      }
-    }
-    newCardAdded = false;
   });
 
   observer.observe(targetNode, observerOptions);
+
+  function updateKey() {
+    const customSortSelect = document.querySelector('.nutri-data-sort') as HTMLSelectElement;
+    if (customSortSelect) {
+      const event = new CustomEvent('updateKey');
+      customSortSelect.dispatchEvent(event);
+    }
+  }
 }

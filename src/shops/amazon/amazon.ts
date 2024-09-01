@@ -105,11 +105,7 @@ export const amazonShop: Shop = {
   createCustomSortSelect(
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
   ): React.ReactElement {
-    return createCustomSortSelectElement(
-      onSort,
-      'nutri-data-sort mt-4',
-      this.getCurrency(window.location.href)
-    );
+    return createCustomSortSelectElement(onSort, 'mt-4', this.getCurrency(window.location.href));
   },
 
   selectors: {

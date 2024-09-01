@@ -10,6 +10,7 @@ export type Database = {
           categories: string[] | null;
           created_at: string;
           description: string | null;
+          gtin: string | null;
           id: number;
           image_url: string | null;
           Ingredients: string | null;
@@ -30,6 +31,7 @@ export type Database = {
           categories?: string[] | null;
           created_at?: string;
           description?: string | null;
+          gtin?: string | null;
           id?: number;
           image_url?: string | null;
           Ingredients?: string | null;
@@ -50,6 +52,7 @@ export type Database = {
           categories?: string[] | null;
           created_at?: string;
           description?: string | null;
+          gtin?: string | null;
           id?: number;
           image_url?: string | null;
           Ingredients?: string | null;

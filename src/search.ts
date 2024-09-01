@@ -12,6 +12,7 @@ async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, asce
   if (!productList) return;
 
   const productCards = Array.from(productList.querySelectorAll(shop.selectors.productCard));
+
   productCards.sort((a, b) => {
     const metricA = parseFloat(
       a.querySelector(`.nutri-data-metrics`)?.getAttribute(`data-${metric}`) || '0'
@@ -33,14 +34,13 @@ async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, asce
     const dataIndexElements = Array.from(productList.querySelectorAll('[data-index]'));
     const lastThreeDataIndexElements = dataIndexElements.slice(-3);
 
-    // Clear the product list
-    while (productList.firstChild) {
-      productList.removeChild(productList.firstChild);
-    }
-
-    // Reinsert the sorted product cards
-    productCards.forEach((card) => {
-      productList.appendChild(card);
+    // Reorder the product cards in place
+    productCards.forEach((card, index) => {
+      if (index === 0) {
+        productList.insertBefore(card, productList.firstChild);
+      } else {
+        productList.insertBefore(card, productCards[index - 1].nextSibling);
+      }
     });
 
     // Append the last 3 [data-index] elements
@@ -49,11 +49,12 @@ async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, asce
     });
   } else {
     // For other shops, continue with the previous sorting method
-    while (productList.firstChild) {
-      productList.removeChild(productList.firstChild);
-    }
-    productCards.forEach((card) => {
-      productList.appendChild(card);
+    productCards.forEach((card, index) => {
+      if (index === 0) {
+        productList.insertBefore(card, productList.firstChild);
+      } else {
+        productList.insertBefore(card, productCards[index - 1].nextSibling);
+      }
     });
   }
 }

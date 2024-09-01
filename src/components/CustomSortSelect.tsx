@@ -1,7 +1,7 @@
 declare const chrome: any;
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Metrics, NutrientInfo } from '../types';
 import { cn } from '../lib/utils';
 
@@ -14,6 +14,21 @@ interface CustomSortSelectProps {
 }
 
 export function CustomSortSelect({ onSort, className, shopCurrency }: CustomSortSelectProps) {
+  const [selectKey, setSelectKey] = useState(0);
+
+  useEffect(() => {
+    // this is called when the shop's sort select is changed to reset this select
+    const handleUpdateKey = () => {
+      setSelectKey((prevKey) => prevKey + 1);
+    };
+    const customSortSelect = document.querySelector('.nutri-data-sort') as HTMLSelectElement;
+    customSortSelect.addEventListener('updateKey', handleUpdateKey);
+
+    return () => {
+      customSortSelect.removeEventListener('updateKey', handleUpdateKey);
+    };
+  }, []);
+
   const metricOptions: [keyof Metrics | keyof NutrientInfo, string, boolean][] = [
     ['proteinPerCurrency', `Protein per ${shopCurrency} (High to Low)`, false],
     ['proteinPer100Calories', 'Protein per 100 Calories (High to Low)', false],
@@ -34,9 +49,9 @@ export function CustomSortSelect({ onSort, className, shopCurrency }: CustomSort
   };
 
   return (
-    <div className={cn('font-sans flex items-center gap-1', className)}>
+    <div className={cn('font-sans flex items-center gap-1 nutri-data-sort', className)}>
       <img src={chrome.runtime.getURL(logo)} alt='logo' className='w-8 h-8' />
-      <Select onValueChange={handleChange}>
+      <Select onValueChange={handleChange} key={selectKey}>
         <SelectTrigger>
           <SelectValue placeholder='Sort by Nutrient Metrics' />
         </SelectTrigger>

@@ -68,6 +68,11 @@ const getRewePriceAndWeightInfo = (data: ProductData): PriceAndWeightInfo => {
     return null;
   })();
 
+  // Add a check for null pricePerKg
+  if (pricePerKg === null) {
+    console.warn(`Unable to calculate pricePerKg for product: ${data.productName}`);
+  }
+
   return { price, weight, pricePerKg };
 };
 
@@ -91,11 +96,13 @@ const saveDataToDb = async (doc: Document, nutritionalData: NutrientInfo) => {
       price: priceAndWeightInfo.price,
       price_per_unit: priceAndWeightInfo.pricePerKg,
       nutritional_data: nutritionalData as unknown as Json,
+      gtin: productData.gtin,
     };
 
     const { error } = await supabase.from('product').upsert(transformedData, {
       onConflict: 'url',
     });
+
     if (error) {
       console.error('Error saving product data to Supabase:', error);
     }
@@ -186,11 +193,7 @@ export const reweShop: Shop = {
   createCustomSortSelect(
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
   ): React.ReactElement {
-    return createCustomSortSelectElement(
-      onSort,
-      'nutri-data-sort ml-2',
-      this.getCurrency(window.location.href)
-    );
+    return createCustomSortSelectElement(onSort, 'ml-2', this.getCurrency(window.location.href));
   },
   selectors: {
     productLink: 'a.search-service-productDetailsLink',

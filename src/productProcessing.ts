@@ -35,7 +35,6 @@ export async function processProductCard(card: Element): Promise<void> {
 // Helper functions
 function isCardAlreadyProcessed(card: Element): boolean {
   if (card.hasAttribute('data-nutridata-processed')) {
-    console.log('Card already processed');
     return true;
   }
   card.setAttribute('data-nutridata-processed', 'true');
