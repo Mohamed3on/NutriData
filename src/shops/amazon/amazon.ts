@@ -105,7 +105,7 @@ export const amazonShop: Shop = {
   createCustomSortSelect(
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
   ): React.ReactElement {
-    return createCustomSortSelectElement(onSort, 'mt-4', this.getCurrency(window.location.href));
+    return createCustomSortSelectElement(onSort, 'mb-4', this.getCurrency(window.location.href));
   },
 
   selectors: {
@@ -114,6 +114,6 @@ export const amazonShop: Shop = {
     productList: '.s-result-list.s-search-results',
     productCard: '[data-asin]:not([data-asin=""])[data-index]',
     adElement: '.AdHolder',
-    sortSelect: '.a-dropdown-container',
+    sortSelect: 'label[for="s-result-sort-select"]',
   },
 };
