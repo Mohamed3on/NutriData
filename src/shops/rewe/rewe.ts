@@ -39,34 +39,35 @@ const getProductData = (doc: Document): ProductData | null => {
 const getRewePriceAndWeightInfo = (data: ProductData): PriceAndWeightInfo => {
   const price = data.pricing.price / 100; // Convert cents to euros
   const weight = data.packaging.weightPerPiece;
-  const pricePerKg = (() => {
-    const grammage = data.pricing.grammage;
-    if (grammage === '1l' || grammage === '1kg') {
-      return price;
-    }
+  const { grammage } = data.pricing;
 
-    const match = grammage.match(/(\d+(?:,\d+)?)\s*([a-zA-Z]+)\s*=\s*([\d,]+)\s*€/);
-    if (match) {
-      const [, amount, unit, priceStr] = match;
-      const amountValue = parseFloat(amount.replace(',', '.'));
-      const priceValue = parseFloat(priceStr.replace(',', '.'));
-      switch (unit.toLowerCase()) {
-        case 'kg':
-          return priceValue;
-        case 'g':
-          return (priceValue / amountValue) * 1000;
-        case 'l':
-        case 'liter':
-        case 'litre':
-          return priceValue;
+  if (['1l', '1kg'].includes(grammage)) {
+    return { price, weight, pricePerKg: price };
+  }
 
-        default:
-          return null;
-      }
-    }
+  const match = grammage.match(/(\d+(?:,\d+)?)\s*([a-zA-Z]+)\s*=\s*([\d,]+)\s*€/);
+  if (!match) {
+    return { price, weight, pricePerKg: null };
+  }
 
-    return null;
-  })();
+  const [, amount, unit, priceStr] = match;
+  const amountValue = parseFloat(amount.replace(',', '.'));
+  const priceValue = parseFloat(priceStr.replace(',', '.'));
+
+  let pricePerKg: number | null = null;
+  switch (unit.toLowerCase()) {
+    case 'kg':
+      pricePerKg = priceValue;
+      break;
+    case 'g':
+      pricePerKg = (priceValue / amountValue) * 1000;
+      break;
+    case 'l':
+    case 'liter':
+    case 'litre':
+      pricePerKg = priceValue;
+      break;
+  }
 
   // Add a check for null pricePerKg
   if (pricePerKg === null) {
@@ -122,28 +123,29 @@ export const reweShop: Shop = {
           productData.nutritionFacts[0]?.nutrientInformation.reduce((acc, fact) => {
             const key = fact.nutrientType.code.toLowerCase();
             const value = `${fact.quantityContained.value} ${fact.quantityContained.uomShortText}`;
-            if (key === 'ener-') {
-              acc.calories = value;
+            switch (key) {
+              case 'ener-':
+                acc.calories = value;
+                break;
+              case 'choavl':
+                acc.carbs = value;
+                break;
+              case 'fat':
+                acc.fat = value;
+                break;
+              case 'pro-':
+                acc.protein = value;
+                break;
+              case 'fibtg':
+                acc.fiber = value;
+                break;
+              case 'sugar-':
+                acc.sugar = value;
+                break;
+              case 'salteq':
+                acc.salt = value;
+                break;
             }
-            if (key === 'choavl') {
-              acc.carbs = value;
-            }
-            if (key === 'fat') {
-              acc.fat = value;
-            }
-            if (key === 'pro-') {
-              acc.protein = value;
-            }
-            if (key === 'fibtg') {
-              acc.fiber = value;
-            }
-            if (key === 'sugar-') {
-              acc.sugar = value;
-            }
-            if (key === 'salteq') {
-              acc.salt = value;
-            }
-
             return acc;
           }, {} as NutrientInfo);
 
