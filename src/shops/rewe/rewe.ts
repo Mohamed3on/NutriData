@@ -118,28 +118,29 @@ export const reweShop: Shop = {
           productData.nutritionFacts[0]?.nutrientInformation.reduce((acc, fact) => {
             const key = fact.nutrientType.code.toLowerCase();
             const value = `${fact.quantityContained.value} ${fact.quantityContained.uomShortText}`;
-            if (key === 'ener-') {
-              acc.calories = value;
+            switch (key) {
+              case 'ener-':
+                acc.calories = value;
+                break;
+              case 'choavl':
+                acc.carbs = value;
+                break;
+              case 'fat':
+                acc.fat = value;
+                break;
+              case 'pro-':
+                acc.protein = value;
+                break;
+              case 'fibtg':
+                acc.fiber = value;
+                break;
+              case 'sugar-':
+                acc.sugar = value;
+                break;
+              case 'salteq':
+                acc.salt = value;
+                break;
             }
-            if (key === 'choavl') {
-              acc.carbs = value;
-            }
-            if (key === 'fat') {
-              acc.fat = value;
-            }
-            if (key === 'pro-') {
-              acc.protein = value;
-            }
-            if (key === 'fibtg') {
-              acc.fiber = value;
-            }
-            if (key === 'sugar-') {
-              acc.sugar = value;
-            }
-            if (key === 'salteq') {
-              acc.salt = value;
-            }
-
             return acc;
           }, {} as NutrientInfo);
 
