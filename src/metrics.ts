@@ -38,10 +38,10 @@ function calculateProteinPerCurrency(
   pricePerKg: number | null
 ): string {
   if (pricePerKg) {
-    return ((protein * 10) / pricePerKg).toFixed(1);
+    return ((protein * 10) / pricePerKg).toFixed(1); // protein is per 100g, therefore protein * 10
   }
   if (weight && price > 0) {
-    return ((protein * weight) / (100 * price)).toFixed(1);
+    return ((protein * weight) / (100 * price)).toFixed(1); // protein is per 100g, weight in g, therefore 100g * price
   }
   return 'N/A';
 }
