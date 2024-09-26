@@ -124,4 +124,4 @@ Contributions are welcome! Feel free to submit a Pull Request.
 
 ## 📄 License
 
-This project is open source under the [MIT License](LICENSE).
+This project is licensed under the Mozilla Public License 2.0 (MPL-2.0).
