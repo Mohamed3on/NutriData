@@ -18,7 +18,7 @@ export function createMetricsElement(
   metricsElement.className = 'nutri-data-metrics';
   metricsElement.style.display = 'grid';
   metricsElement.style.margin = '0 auto';
-  metricsElement.style.width = 'max-content';
+  metricsElement.style.maxWidth = 'max-content';
 
   if (metrics && nutrientInfo) {
     Object.entries(metrics).forEach(([key, value]) => {
