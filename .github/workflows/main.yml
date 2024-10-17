@@ -72,6 +72,24 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm run release
 
+      - name: Update manifest version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          jq --arg version "$version" '.version = $version' manifest.json > manifest.json.tmp && mv manifest.json.tmp manifest.json
+
+      - name: Commit manifest changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add manifest.json
+          git commit -m "chore: update manifest version to $version [skip ci]" || echo "No changes to commit"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
