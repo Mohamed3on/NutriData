@@ -102,6 +102,11 @@ export const amazonShop: Shop = {
     }
   },
 
+  insertSortSelect(sortSelectElement: HTMLElement, container: HTMLElement): void {
+    // For Amazon, we want to insert it after the sort select container
+    container.parentNode?.insertBefore(sortSelectElement, container.nextSibling);
+  },
+
   createCustomSortSelect(
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
   ): React.ReactElement {

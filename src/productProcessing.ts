@@ -9,6 +9,7 @@ export async function processAllProductCards(): Promise<void> {
   const shop = detectShop();
   const productCards = document.querySelectorAll(shop.selectors.productCard);
   const promises = Array.from(productCards).map(processProductCard);
+
   await Promise.allSettled(promises);
 }
 
@@ -81,5 +82,9 @@ async function getProductData(
 function adjustCardHeight(card: Element): void {
   if (card instanceof HTMLElement) {
     card.style.height = 'auto';
+    const productDetails: HTMLElement | null = card.querySelector('.search-service-productDetails');
+    if (productDetails) {
+      productDetails.style.height = 'auto';
+    }
   }
 }

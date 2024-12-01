@@ -192,16 +192,20 @@ export const reweShop: Shop = {
       productDetails.style.height = 'auto';
     }
   },
+  insertSortSelect(sortSelectElement: HTMLElement, container: HTMLElement): void {
+    // For REWE, we want to append the sort select as a child
+    container.appendChild(sortSelectElement);
+  },
   createCustomSortSelect(
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
   ): React.ReactElement {
-    return createCustomSortSelectElement(onSort, 'ml-2', this.getCurrency(window.location.href));
+    return createCustomSortSelectElement(onSort, 'ml-2', this.getCurrency());
   },
   selectors: {
     productLink: 'a.search-service-productDetailsLink',
     productList: '.search-service-rsTiles',
     productCard: '.search-service-product',
     adElement: 'rd-flagship',
-    sortSelect: '#sorting',
+    sortSelect: '.rsDisplayoptionsRightHideInMobile',
   },
 };

@@ -33,6 +33,7 @@ export interface Shop {
   getPriceAndWeightInfo: (doc: Document) => PriceAndWeightInfo;
   getInsertionPoint: (element: HTMLElement) => HTMLElement | null;
   insertMetricsIntoCard: (card: Element, metricsElement: HTMLElement) => void;
+  insertSortSelect: (sortSelectElement: HTMLElement, container: HTMLElement) => void;
   selectors: {
     productList: string;
     productCard: string;

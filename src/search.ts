@@ -83,13 +83,9 @@ async function main() {
         ) as HTMLSelectElement;
         if (existingSelect) {
           const customSortSelectContainer = document.createElement('div');
-          existingSelect.parentNode?.insertBefore(
-            customSortSelectContainer,
-            existingSelect.nextSibling
-          );
-
           const root = createRoot(customSortSelectContainer);
           root.render(shop.createCustomSortSelect(sortProductCards));
+          shop.insertSortSelect(customSortSelectContainer, existingSelect);
         }
       }
     }
