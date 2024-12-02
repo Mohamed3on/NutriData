@@ -174,7 +174,7 @@ export const reweShop: Shop = {
   },
 
   getInsertionPoint(element: HTMLElement): HTMLElement | null {
-    return element.querySelector('.bs_add2cart_container');
+    return element.querySelector('.pdsr-CallToAction--Details');
   },
 
   insertMetricsIntoCard(card: Element, metricsElement: HTMLElement): void {

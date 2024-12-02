@@ -17,7 +17,6 @@ export function createMetricsElement(
   const metricsElement = document.createElement('div');
   metricsElement.className = 'nutri-data-metrics';
   metricsElement.style.display = 'grid';
-  metricsElement.style.margin = '0 auto';
   metricsElement.style.maxWidth = 'fit-content';
   metricsElement.style.width = 'max-content';
 

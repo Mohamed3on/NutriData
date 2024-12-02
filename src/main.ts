@@ -20,8 +20,13 @@ async function displayInfo(shop: Shop) {
     return;
   }
 
+  const metricsCardExtraStyle = shop.getMetricsCardExtraStyle?.();
+
   const metrics = calculateMetrics(nutrientInfo, priceAndWeightInfo);
   const infoElement = createInfoElement(nutrientInfo, metrics);
+  if (metricsCardExtraStyle) {
+    infoElement.style.cssText += metricsCardExtraStyle;
+  }
 
   insertionPoint.parentNode?.insertBefore(infoElement, insertionPoint.nextSibling);
 }

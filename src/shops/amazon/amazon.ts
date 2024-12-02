@@ -91,6 +91,9 @@ export const amazonShop: Shop = {
   getInsertionPoint(element: HTMLElement): HTMLElement | null {
     return element.querySelector('#imageBlock');
   },
+  getMetricsCardExtraStyle(): string {
+    return 'margin: 0 auto;';
+  },
 
   insertMetricsIntoCard(card: Element, metricsElement: HTMLElement): void {
     const priceElement = card.querySelector('.a-price');
