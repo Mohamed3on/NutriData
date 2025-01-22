@@ -117,7 +117,8 @@ export const reweShop: Shop = {
   },
   async getNutrientInfo(doc: Document): Promise<NutrientInfo> {
     const productData = getProductData(doc);
-    if (productData) {
+
+    if (productData?.nutritionFacts?.length && productData.nutritionFacts.length > 0) {
       try {
         const nutritionalData: NutrientInfo =
           productData.nutritionFacts[0]?.nutrientInformation.reduce((acc, fact) => {
