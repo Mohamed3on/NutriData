@@ -5,6 +5,7 @@ export const COLOR_THRESHOLDS: Record<string, ColorThresholds> = {
   proteinPerCurrency: { good: 12, bad: 4 },
   proteinToCarbRatio: { good: 2, bad: 0.1 },
   proteinPer100Calories: { good: 10, bad: 3 },
+  nutriScore: { good: 10, bad: 3 }, // Weighted towards protein per 100 calories scale
 };
 
 export function interpolateColor(color1: number[], color2: number[], factor: number): number[] {
@@ -45,6 +46,8 @@ export function formatLabel(key: string, currency: string | null = null): string
       return `Protein per ${currency}`;
     case 'proteinPer100Calories':
       return 'Protein per 100 Calories';
+    case 'nutriScore':
+      return 'NutriScore';
     default:
       return (
         key.charAt(0).toUpperCase() +

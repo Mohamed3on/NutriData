@@ -7,6 +7,7 @@ export interface NutrientInfo {
   fiber?: string;
   sodium?: string;
   salt?: string;
+  saturatedFat?: string;
 }
 
 export interface PriceAndWeightInfo {
@@ -19,6 +20,7 @@ export interface Metrics {
   proteinPerCurrency: string;
   proteinToCarbRatio: string;
   proteinPer100Calories: string;
+  nutriScore: string;
 }
 
 export interface ColorThresholds {

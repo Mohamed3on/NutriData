@@ -134,6 +134,9 @@ export const reweShop: Shop = {
               case 'fat':
                 acc.fat = value;
                 break;
+              case 'fasat':
+                acc.saturatedFat = value;
+                break;
               case 'pro-':
                 acc.protein = value;
                 break;

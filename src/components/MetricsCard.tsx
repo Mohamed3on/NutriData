@@ -14,6 +14,7 @@ const shop = detectShop();
 
 export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo }) => {
   const metricOrder: (keyof Metrics)[] = [
+    'nutriScore',
     'proteinPerCurrency',
     'proteinPer100Calories',
     'proteinToCarbRatio',
@@ -24,6 +25,7 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
     'protein',
     'carbs',
     'fat',
+    'saturatedFat',
     'sugar',
     'fiber',
   ];
@@ -69,8 +71,10 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
         (key) =>
           nutrientInfo[key] && (
             <div key={key}>
-              {key.charAt(0).toUpperCase() + key.slice(1)}:{' '}
-              <span className='font-bold'>{nutrientInfo[key]}</span>
+              {key === 'saturatedFat'
+                ? 'Saturated Fat'
+                : key.charAt(0).toUpperCase() + key.slice(1)}
+              : <span className='font-bold'>{nutrientInfo[key]}</span>
             </div>
           )
       )}
