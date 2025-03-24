@@ -38,11 +38,8 @@ export function calculateMetrics(
     const ppc = parseFloat(metrics.proteinPerCurrency); // g protein per currency
     const ppc100 = parseFloat(metrics.proteinPer100Calories); // g protein per 100 calories
 
-    // Parse fiber and saturated fat if they exist, handling unit strings
+    // Parse fiber if it exists, handling unit strings
     const fiber = nutrientInfo.fiber ? parseFloat(nutrientInfo.fiber.replace(/[^\d.-]/g, '')) : 0;
-    const saturatedFat = nutrientInfo.saturatedFat
-      ? parseFloat(nutrientInfo.saturatedFat.replace(/[^\d.-]/g, ''))
-      : 0;
 
     // Create adjustment factors:
     // 1. Fiber bonus: ranges from 1 to 1.3 (up to 30% boost)
