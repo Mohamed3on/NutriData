@@ -51,17 +51,11 @@ export function calculateMetrics(
     // - Very high fiber foods have >8g per 100g
     const fiberBonus = fiber > 0 ? 1 + Math.min(fiber / 8, 0.3) : 1;
 
-    // 2. Saturated fat penalty: ranges from 1 to 0.5 (up to 50% reduction)
-    // - Low sat fat foods have <1g per 100g
-    // - Medium sat fat foods have 1-5g per 100g
-    // - High sat fat foods have >5g per 100g
-    const satFatPenalty = saturatedFat > 0 ? Math.max(1 - saturatedFat / 10, 0.5) : 1;
-
     // Calculate base score with protein metrics (weighted geometric mean)
     const baseScore = Math.pow(ppc100, 0.65) * Math.pow(ppc, 0.35);
 
-    // Apply fiber bonus and saturated fat penalty
-    metrics.nutriScore = (baseScore * fiberBonus * satFatPenalty).toFixed(1);
+    // Apply fiber bonus
+    metrics.nutriScore = (baseScore * fiberBonus).toFixed(1);
   } else {
     metrics.nutriScore = '0';
   }
