@@ -37,7 +37,7 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
       {hasProteinData && (
         <>
           <div className='font-bold mb-2 flex items-center gap-2'>
-            Protein Analysis
+            Nutrient Analysis
             <Tooltip />
           </div>
           {metricOrder.map(

@@ -72,7 +72,7 @@ async function getProductData(
     return { nutrientInfo: null, metrics: null };
   }
 
-  const priceAndWeightInfo = detectShop().getPriceAndWeightInfo(doc);
+  const priceAndWeightInfo = await detectShop().getPriceAndWeightInfo(doc);
   const metrics = calculateMetrics(nutrientInfo, priceAndWeightInfo);
 
   await setCachedData(cleanUrl.toString(), { nutrientInfo, metrics, timestamp: Date.now() });

@@ -163,7 +163,7 @@ export const reweShop: Shop = {
     return {} as NutrientInfo;
   },
 
-  getPriceAndWeightInfo(doc: Document): PriceAndWeightInfo {
+  async getPriceAndWeightInfo(doc: Document): Promise<PriceAndWeightInfo> {
     const productData = getProductData(doc);
     if (productData) {
       try {

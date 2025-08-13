@@ -9,7 +9,6 @@ const NUTRIENT_LABELS: Partial<Record<keyof NutrientInfo, string>> = {
   fat: 'Fat',
   calories: 'Energy (kcal)',
   fiber: 'Fibre',
-  sodium: 'Sodium',
 };
 
 export const amazonShop: Shop = {
@@ -51,7 +50,7 @@ export const amazonShop: Shop = {
     return Promise.resolve(nutrientInfo as NutrientInfo);
   },
 
-  getPriceAndWeightInfo(doc: Document): PriceAndWeightInfo {
+  async getPriceAndWeightInfo(doc: Document): Promise<PriceAndWeightInfo> {
     let pricePerKg: number | null = null;
 
     // Try to find the pricePerUnit element first

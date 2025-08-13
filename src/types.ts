@@ -5,7 +5,6 @@ export interface NutrientInfo {
   fat: string;
   calories: string;
   fiber?: string;
-  sodium?: string;
   salt?: string;
   saturatedFat?: string;
 }
@@ -32,7 +31,7 @@ export interface Shop {
   name: string;
   getCurrency: (url?: string) => '€' | '£';
   getNutrientInfo: (doc: Document) => Promise<NutrientInfo>;
-  getPriceAndWeightInfo: (doc: Document) => PriceAndWeightInfo;
+  getPriceAndWeightInfo: (doc: Document) => Promise<PriceAndWeightInfo>;
   getInsertionPoint: (element: HTMLElement) => HTMLElement | null;
   insertMetricsIntoCard: (card: Element, metricsElement: HTMLElement) => void;
   getMetricsCardExtraStyle?: () => string;
