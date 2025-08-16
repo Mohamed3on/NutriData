@@ -37,8 +37,7 @@ export function CustomSortSelect({ onSort, className, shopCurrency }: CustomSort
     ['proteinPer100Calories', 'Protein per 100 Calories (High to Low)', false],
     ['proteinToCarbRatio', 'Protein to Carb Ratio (High to Low)', false],
     ['protein', 'Protein (High to Low)', false],
-    ['carbs', 'Carbs (High to Low)', false],
-    ['fat', 'Fat (High to Low)', false],
+    ['carbs', 'Carbs (Low to High)', true],
     ['fat', 'Fat (Low to High)', true],
     ['saturatedFat', 'Saturated Fat (Low to High)', true],
     ['fiber', 'Fiber (High to Low)', false],
@@ -72,7 +71,7 @@ export function CustomSortSelect({ onSort, className, shopCurrency }: CustomSort
         </SelectTrigger>
         <SelectContent className='font-sans'>
           {metricOptions.map(([metric, label, ascending]) => (
-            <SelectItem key={metric} value={`${metric},${ascending}`}>
+            <SelectItem key={`${metric}-${ascending}`} value={`${metric},${ascending}`}>
               {label}
             </SelectItem>
           ))}

@@ -11,6 +11,8 @@ export function setupMutationObserver(): void {
   const observerOptions = {
     childList: true,
     subtree: true,
+    characterData: true,
+    attributes: true,
   };
 
   let isSortSelectListenerAdded = false;
@@ -24,25 +26,52 @@ export function setupMutationObserver(): void {
     // Set to keep track of elements currently being processed
     const inProgressElements = new Set<HTMLElement>();
 
+    // Debounce processing to avoid excessive calls
+    let processingTimeout: NodeJS.Timeout;
+    
+    const processUnprocessedProducts = () => {
+      const allProducts = document.querySelectorAll('.search-service-product:not([data-nutridata-processed])');
+      allProducts.forEach((product) => {
+        if (product instanceof HTMLElement) {
+          inProgressElements.add(product);
+          processProductCard(product)
+            .then(() => {
+              inProgressElements.delete(product);
+            })
+            .catch((error) => {
+              console.error('Error processing product card:', error);
+              inProgressElements.delete(product);
+            });
+        }
+      });
+    };
+
     mutations.forEach((mutation) => {
       if (mutation.type === 'childList') {
+        // Process all added nodes to find product cards
         mutation.addedNodes.forEach((node) => {
-          if (node instanceof HTMLElement && node.classList.contains('search-service-product')) {
-            // Check if the element has not been processed yet
-            if (!node.hasAttribute('data-nutridata-processed')) {
-              inProgressElements.add(node);
-              processProductCard(node)
-                .then(() => {
-                  inProgressElements.delete(node);
-                })
-                .catch((error) => {
-                  console.error('Error processing dynamically added product card:', error);
-                  inProgressElements.delete(node);
-                });
-            }
+          if (node instanceof HTMLElement) {
+            const products = node.querySelectorAll('.search-service-product');
+            products.forEach((product) => {
+              if (product instanceof HTMLElement && !product.hasAttribute('data-nutridata-processed')) {
+                inProgressElements.add(product);
+                processProductCard(product)
+                  .then(() => {
+                    inProgressElements.delete(product);
+                  })
+                  .catch((error) => {
+                    console.error('Error processing product card:', error);
+                    inProgressElements.delete(product);
+                  });
+              }
+            });
           }
         });
       }
+      
+      // For any mutation, check for unprocessed products after a delay
+      clearTimeout(processingTimeout);
+      processingTimeout = setTimeout(processUnprocessedProducts, 500);
     });
   });
 

@@ -28,6 +28,9 @@ export async function processProductCard(card: Element): Promise<void> {
     const shop = detectShop();
     shop.insertMetricsIntoCard(card, metricsElement);
     adjustCardHeight(card);
+    
+    // Trigger re-sort if sort is active
+    triggerResortIfNeeded();
   } catch (error) {
     console.error('Error processing product card:', error);
   }
@@ -86,5 +89,15 @@ function adjustCardHeight(card: Element): void {
     if (productDetails) {
       productDetails.style.height = 'auto';
     }
+  }
+}
+
+function triggerResortIfNeeded(): void {
+  // Check if custom sort is currently active
+  const customSortSelect = document.querySelector('.nutri-data-sort select') as HTMLSelectElement;
+  if (customSortSelect && customSortSelect.value) {
+    // Re-trigger the sort by dispatching a change event
+    const event = new Event('change', { bubbles: true });
+    customSortSelect.dispatchEvent(event);
   }
 }
