@@ -39,6 +39,7 @@ export function CustomSortSelect({ onSort, className, shopCurrency }: CustomSort
     ['protein', 'Protein (High to Low)', false],
     ['carbs', 'Carbs (High to Low)', false],
     ['fat', 'Fat (High to Low)', false],
+    ['fat', 'Fat (Low to High)', true],
     ['saturatedFat', 'Saturated Fat (Low to High)', true],
     ['fiber', 'Fiber (High to Low)', false],
     ['calories', 'Calories (Low to High)', true],
