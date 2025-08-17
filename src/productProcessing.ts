@@ -3,6 +3,7 @@ import { calculateMetrics } from './metrics';
 import { fetchProductData, createMetricsElement } from './domUtils';
 import { getCachedData, setCachedData } from './cacheUtils';
 import { detectShop } from './shops/detectShop';
+import { isAutoResortEnabled } from './settings';
 
 // Main function to process all product cards
 export async function processAllProductCards(): Promise<void> {
@@ -29,8 +30,10 @@ export async function processProductCard(card: Element): Promise<void> {
     shop.insertMetricsIntoCard(card, metricsElement);
     adjustCardHeight(card);
 
-    // Trigger re-sort if sort is active
-    triggerResortIfNeeded();
+    // Trigger re-sort if enabled and sort is active
+    if (await isAutoResortEnabled()) {
+      triggerResortIfNeeded();
+    }
   } catch (error) {
     console.error('Error processing product card:', error);
   }

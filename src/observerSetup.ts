@@ -1,5 +1,6 @@
 import { detectShop } from './shops/detectShop';
 import { processProductCard } from './productProcessing';
+import { isShopEnabled, isAutoResortEnabled } from './settings';
 
 export function setupMutationObserver(): void {
   const targetNode = document.body;
@@ -25,10 +26,12 @@ export function setupMutationObserver(): void {
 
     // Debounce processing to avoid excessive calls
     let processingTimeout: NodeJS.Timeout;
-    
+
     const processUnprocessedProducts = () => {
       const shop = detectShop();
-      const allProducts = document.querySelectorAll(`${shop.selectors.productCard}:not([data-nutridata-processed])`);
+      const allProducts = document.querySelectorAll(
+        `${shop.selectors.productCard}:not([data-nutridata-processed])`
+      );
       allProducts.forEach((product) => {
         if (product instanceof HTMLElement) {
           inProgressElements.add(product);
@@ -51,7 +54,10 @@ export function setupMutationObserver(): void {
           if (node instanceof HTMLElement) {
             const products = node.querySelectorAll(detectShop().selectors.productCard);
             products.forEach((product) => {
-              if (product instanceof HTMLElement && !product.hasAttribute('data-nutridata-processed')) {
+              if (
+                product instanceof HTMLElement &&
+                !product.hasAttribute('data-nutridata-processed')
+              ) {
                 inProgressElements.add(product);
                 processProductCard(product)
                   .then(() => {
@@ -66,13 +72,19 @@ export function setupMutationObserver(): void {
           }
         });
       }
-      
+
       // For any mutation, check for unprocessed products after a delay
       clearTimeout(processingTimeout);
       processingTimeout = setTimeout(() => {
-        processUnprocessedProducts();
-        // Trigger a safe resort to re-apply order after re-render or replacements
-        document.dispatchEvent(new Event('nutridata:resort'));
+        isShopEnabled().then((shopEnabled) => {
+          if (!shopEnabled) return;
+          processUnprocessedProducts();
+          // Trigger a safe resort to re-apply order after re-render or replacements
+          isAutoResortEnabled().then((autoResort) => {
+            if (!autoResort) return;
+            document.dispatchEvent(new Event('nutridata:resort'));
+          });
+        });
       }, 400);
     });
   });

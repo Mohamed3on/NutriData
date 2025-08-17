@@ -5,6 +5,7 @@ import { Metrics, NutrientInfo } from './types';
 import './index.css';
 import { detectShop } from './shops/detectShop';
 import { createRoot } from 'react-dom/client';
+import { isShopEnabled, isAutoResortEnabled } from './settings';
 
 let lastSort: { metric: keyof Metrics | keyof NutrientInfo; ascending: boolean } | null = null;
 
@@ -68,9 +69,15 @@ function handleSort(metric: keyof Metrics | keyof NutrientInfo, ascending: boole
 }
 
 document.addEventListener('nutridata:resort', () => {
-  if (lastSort) {
-    sortProductCards(lastSort.metric, lastSort.ascending);
-  }
+  isAutoResortEnabled().then((enabled) => {
+    if (!enabled) return;
+    // Only resort on supported shops
+    const shop = detectShop();
+    if (!shop) return;
+    if (lastSort) {
+      sortProductCards(lastSort.metric, lastSort.ascending);
+    }
+  });
 });
 
 function removeAdElements() {
@@ -81,6 +88,8 @@ function removeAdElements() {
 
 async function main() {
   try {
+    const enabled = await isShopEnabled();
+    if (!enabled) return;
     const shop = detectShop();
     const isSearchPage = !!document.querySelector(shop.selectors.productList);
     if (isSearchPage) {

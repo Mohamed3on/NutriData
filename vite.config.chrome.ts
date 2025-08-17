@@ -4,6 +4,13 @@ import react from '@vitejs/plugin-react';
 import manifest from './manifest.json';
 
 export default defineConfig({
-  build: { outDir: 'dist/chrome' },
+  build: {
+    outDir: 'dist/chrome',
+    rollupOptions: {
+      input: {
+        options: 'options.html',
+      },
+    },
+  },
   plugins: [react(), crx({ manifest })],
 });

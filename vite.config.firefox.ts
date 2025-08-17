@@ -6,6 +6,11 @@ import manifest from './manifest.json';
 export default defineConfig({
   build: {
     outDir: 'dist/firefox',
+    rollupOptions: {
+      input: {
+        options: 'options.html',
+      },
+    },
   },
   plugins: [react(), crx({ manifest })],
 });

@@ -3,6 +3,7 @@ import { calculateMetrics } from './metrics';
 import { createInfoElement } from './ui';
 import './index.css';
 import { detectShop } from './shops/detectShop';
+import { isShopEnabled } from './settings';
 
 async function displayInfo(shop: Shop) {
   try {
@@ -42,7 +43,9 @@ async function displayInfo(shop: Shop) {
   }
 }
 
-function runDisplayInfo() {
+async function runDisplayInfo() {
+  const enabled = await isShopEnabled();
+  if (!enabled) return;
   const shop = detectShop();
   if (shop) {
     displayInfo(shop);
