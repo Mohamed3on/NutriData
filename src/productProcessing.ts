@@ -28,7 +28,7 @@ export async function processProductCard(card: Element): Promise<void> {
     const shop = detectShop();
     shop.insertMetricsIntoCard(card, metricsElement);
     adjustCardHeight(card);
-    
+
     // Trigger re-sort if sort is active
     triggerResortIfNeeded();
   } catch (error) {
@@ -46,8 +46,8 @@ function isCardAlreadyProcessed(card: Element): boolean {
 }
 
 function getProductUrl(card: Element): string | null {
-  const link = card.querySelector(detectShop().selectors.productLink);
-  return link ? (link as HTMLAnchorElement).href : null;
+  const link = card.querySelector(detectShop().selectors.productLink) as HTMLAnchorElement | null;
+  return link ? link.href : null;
 }
 
 async function getProductData(
@@ -93,11 +93,6 @@ function adjustCardHeight(card: Element): void {
 }
 
 function triggerResortIfNeeded(): void {
-  // Check if custom sort is currently active
-  const customSortSelect = document.querySelector('.nutri-data-sort select') as HTMLSelectElement;
-  if (customSortSelect && customSortSelect.value) {
-    // Re-trigger the sort by dispatching a change event
-    const event = new Event('change', { bubbles: true });
-    customSortSelect.dispatchEvent(event);
-  }
+  // Emit a custom event that our sorting layer listens to
+  document.dispatchEvent(new Event('nutridata:resort'));
 }

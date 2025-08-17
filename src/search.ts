@@ -6,58 +6,72 @@ import './index.css';
 import { detectShop } from './shops/detectShop';
 import { createRoot } from 'react-dom/client';
 
+let lastSort: { metric: keyof Metrics | keyof NutrientInfo; ascending: boolean } | null = null;
+
+function findDirectChildContainer(node: Element, container: Element): Element | null {
+  let current: Element | null = node;
+  while (current && current.parentElement) {
+    if (current.parentElement === container) return current;
+    current = current.parentElement;
+  }
+  return null;
+}
+
 async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) {
   const shop = detectShop();
-  const productList = document.querySelector(shop.selectors.productList);
+  // Disable custom sorting on Amazon entirely
+  if (shop.name === 'amazon') return;
+  const productList = document.querySelector(shop.selectors.productList) as HTMLElement;
   if (!productList) return;
 
-  const productCards = Array.from(productList.querySelectorAll(shop.selectors.productCard));
+  const productCards = Array.from(
+    productList.querySelectorAll(shop.selectors.productCard)
+  ) as HTMLElement[];
 
-  productCards.sort((a, b) => {
-    const metricA = parseFloat(
-      a.querySelector(`.nutri-data-metrics`)?.getAttribute(`data-${metric}`) || '0'
+  // Map cards to their direct child containers of productList
+  const containers = productCards
+    .map((card) => findDirectChildContainer(card, productList))
+    .filter((el): el is HTMLElement => Boolean(el));
+
+  // Deduplicate containers (some selectors might point inside the same wrapper)
+  const uniqueContainers = Array.from(new Set(containers));
+
+  // Build sortable tuples of container and metric value
+  const containersWithMetrics = uniqueContainers.map((container) => {
+    const metricValue = parseFloat(
+      (container.querySelector(`.nutri-data-metrics`) as HTMLElement)?.getAttribute(
+        `data-${metric}`
+      ) || 'NaN'
     );
-    const metricB = parseFloat(
-      b.querySelector(`.nutri-data-metrics`)?.getAttribute(`data-${metric}`) || '0'
-    );
-
-    // Handle 'N/A' values
-    if (isNaN(metricA) && isNaN(metricB)) return 0;
-    if (isNaN(metricA)) return ascending ? 1 : -1;
-    if (isNaN(metricB)) return ascending ? -1 : 1;
-
-    return ascending ? metricA - metricB : metricB - metricA;
+    return { container, metricValue };
   });
 
-  if (shop.name === 'amazon') {
-    // Find the last 3 [data-index] elements
-    const dataIndexElements = Array.from(productList.querySelectorAll('[data-index]'));
-    const lastThreeDataIndexElements = dataIndexElements.slice(-3);
+  // Sort the array
+  containersWithMetrics.sort((a, b) => {
+    // Handle 'N/A' values
+    if (isNaN(a.metricValue) && isNaN(b.metricValue)) return 0;
+    if (isNaN(a.metricValue)) return ascending ? 1 : -1;
+    if (isNaN(b.metricValue)) return ascending ? -1 : 1;
 
-    // Reorder the product cards in place
-    productCards.forEach((card, index) => {
-      if (index === 0) {
-        productList.insertBefore(card, productList.firstChild);
-      } else {
-        productList.insertBefore(card, productCards[index - 1].nextSibling);
-      }
-    });
+    return ascending ? a.metricValue - b.metricValue : b.metricValue - a.metricValue;
+  });
 
-    // Append the last 3 [data-index] elements
-    lastThreeDataIndexElements.forEach((element) => {
-      productList.appendChild(element);
-    });
-  } else {
-    // For other shops, continue with the previous sorting method
-    productCards.forEach((card, index) => {
-      if (index === 0) {
-        productList.insertBefore(card, productList.firstChild);
-      } else {
-        productList.insertBefore(card, productCards[index - 1].nextSibling);
-      }
-    });
-  }
+  // Apply CSS order instead of moving DOM nodes (Amazon returns early above)
+  containersWithMetrics.forEach(({ container }, index) => {
+    (container as HTMLElement).style.order = index.toString();
+  });
 }
+
+function handleSort(metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) {
+  lastSort = { metric, ascending };
+  sortProductCards(metric, ascending);
+}
+
+document.addEventListener('nutridata:resort', () => {
+  if (lastSort) {
+    sortProductCards(lastSort.metric, lastSort.ascending);
+  }
+});
 
 function removeAdElements() {
   const shop = detectShop();
@@ -84,7 +98,7 @@ async function main() {
         if (existingSelect) {
           const customSortSelectContainer = document.createElement('div');
           const root = createRoot(customSortSelectContainer);
-          root.render(shop.createCustomSortSelect(sortProductCards));
+          root.render(shop.createCustomSortSelect(handleSort));
           shop.insertSortSelect(customSortSelectContainer, existingSelect);
         }
       }

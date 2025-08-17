@@ -2,11 +2,8 @@ import { detectShop } from './shops/detectShop';
 import { processProductCard } from './productProcessing';
 
 export function setupMutationObserver(): void {
-  const targetNode = document.querySelector(detectShop().selectors.productList);
-  if (!targetNode) {
-    console.log('This page is probably not a product list page. Aborting observer setup.');
-    return;
-  }
+  const targetNode = document.body;
+  if (!targetNode) return;
 
   const observerOptions = {
     childList: true,
@@ -30,7 +27,8 @@ export function setupMutationObserver(): void {
     let processingTimeout: NodeJS.Timeout;
     
     const processUnprocessedProducts = () => {
-      const allProducts = document.querySelectorAll('.search-service-product:not([data-nutridata-processed])');
+      const shop = detectShop();
+      const allProducts = document.querySelectorAll(`${shop.selectors.productCard}:not([data-nutridata-processed])`);
       allProducts.forEach((product) => {
         if (product instanceof HTMLElement) {
           inProgressElements.add(product);
@@ -51,7 +49,7 @@ export function setupMutationObserver(): void {
         // Process all added nodes to find product cards
         mutation.addedNodes.forEach((node) => {
           if (node instanceof HTMLElement) {
-            const products = node.querySelectorAll('.search-service-product');
+            const products = node.querySelectorAll(detectShop().selectors.productCard);
             products.forEach((product) => {
               if (product instanceof HTMLElement && !product.hasAttribute('data-nutridata-processed')) {
                 inProgressElements.add(product);
@@ -71,7 +69,11 @@ export function setupMutationObserver(): void {
       
       // For any mutation, check for unprocessed products after a delay
       clearTimeout(processingTimeout);
-      processingTimeout = setTimeout(processUnprocessedProducts, 500);
+      processingTimeout = setTimeout(() => {
+        processUnprocessedProducts();
+        // Trigger a safe resort to re-apply order after re-render or replacements
+        document.dispatchEvent(new Event('nutridata:resort'));
+      }, 400);
     });
   });
 

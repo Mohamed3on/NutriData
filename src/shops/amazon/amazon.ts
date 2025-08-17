@@ -1,6 +1,6 @@
 import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../../types';
 
-import { createCustomSortSelectElement } from '../../utils/createCustomSortSelect';
+import React from 'react';
 
 const NUTRIENT_LABELS: Partial<Record<keyof NutrientInfo, string>> = {
   protein: 'Protein',
@@ -87,6 +87,10 @@ export const amazonShop: Shop = {
     return { pricePerKg };
   },
 
+  getPriceAndWeightInfoFromCard(_card: Element): PriceAndWeightInfo | null {
+    return null;
+  },
+
   getInsertionPoint(element: HTMLElement): HTMLElement | null {
     return element.querySelector('#imageBlock');
   },
@@ -104,15 +108,16 @@ export const amazonShop: Shop = {
     }
   },
 
-  insertSortSelect(sortSelectElement: HTMLElement, container: HTMLElement): void {
-    // For Amazon, we want to insert it after the sort select container
-    container.parentNode?.insertBefore(sortSelectElement, container.nextSibling);
+  insertSortSelect(_sortSelectElement: HTMLElement, _container: HTMLElement): void {
+    // Disable custom sort UI on Amazon
+    // no-op
   },
 
   createCustomSortSelect(
-    onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
+    _onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
   ): React.ReactElement {
-    return createCustomSortSelectElement(onSort, 'mb-4', this.getCurrency(window.location.href));
+    // Return an empty element for Amazon (sorting disabled)
+    return React.createElement(React.Fragment);
   },
 
   selectors: {

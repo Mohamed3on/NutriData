@@ -56,9 +56,12 @@ export function CustomSortSelect({ onSort, className, shopCurrency }: CustomSort
   return (
     <div className={cn('font-sans flex items-center gap-1 nutri-data-sort', className)}>
       <button
+        type='button'
         onClick={() => {
           onSort('nutriScore', false);
           setCurrentValue('nutriScore,false');
+          // keep last choice persistent for auto-resort
+          document.dispatchEvent(new Event('nutridata:resort'));
         }}
         className='appearance-none p-0 m-0 bg-transparent rounded-xl cursor-pointer transition-all duration-150 active:scale-95 border border-gray-200'
         title='Sort by NutriScore (High to Low)'

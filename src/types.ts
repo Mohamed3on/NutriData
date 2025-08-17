@@ -32,6 +32,8 @@ export interface Shop {
   getCurrency: (url?: string) => '€' | '£';
   getNutrientInfo: (doc: Document) => Promise<NutrientInfo>;
   getPriceAndWeightInfo: (doc: Document) => Promise<PriceAndWeightInfo>;
+  // Optional: some shops can provide price/weight info directly from the search card DOM
+  getPriceAndWeightInfoFromCard?: (card: Element) => PriceAndWeightInfo | null;
   getInsertionPoint: (element: HTMLElement) => HTMLElement | null;
   insertMetricsIntoCard: (card: Element, metricsElement: HTMLElement) => void;
   getMetricsCardExtraStyle?: () => string;
