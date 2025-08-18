@@ -1,6 +1,6 @@
 import { detectShop } from './shops/detectShop';
 import { processProductCard } from './productProcessing';
-import { isShopEnabled, isAutoResortEnabled } from './settings';
+import { isShopEnabled, isAutoResortEnabled, isSearchUIEnabled } from './settings';
 
 export function setupMutationObserver(): void {
   const targetNode = document.body;
@@ -27,7 +27,9 @@ export function setupMutationObserver(): void {
     // Debounce processing to avoid excessive calls
     let processingTimeout: NodeJS.Timeout;
 
-    const processUnprocessedProducts = () => {
+    const processUnprocessedProducts = async () => {
+      const searchUI = await isSearchUIEnabled();
+      if (!searchUI) return;
       const shop = detectShop();
       const allProducts = document.querySelectorAll(
         `${shop.selectors.productCard}:not([data-nutridata-processed])`

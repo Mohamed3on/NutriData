@@ -22,6 +22,10 @@ function OptionsApp() {
     setSettings((prev) => ({ ...prev, autoResort: !prev.autoResort }));
   };
 
+  const toggleSearchUI = () => {
+    setSettings((prev) => ({ ...prev, searchUIEnabled: !prev.searchUIEnabled }));
+  };
+
   const onSave = async () => {
     setSaveState('saving');
     await saveSettings(settings);
@@ -79,21 +83,36 @@ function OptionsApp() {
           <section className='bg-card text-card-foreground border rounded-lg p-5 shadow-sm'>
             <h2 className='text-lg font-medium'>Behavior</h2>
             <p className='text-sm text-muted-foreground mt-1'>
-              Control automatic resorting when results update.
+              Control automatic resorting and search results UI.
             </p>
 
-            <label className='mt-4 flex items-center justify-between py-1'>
-              <span className='text-sm font-medium'>Auto resort results</span>
-              <input
-                type='checkbox'
-                className='h-4 w-4'
-                checked={settings.autoResort}
-                onChange={toggleAutoResort}
-              />
-            </label>
-            <p className='text-xs text-muted-foreground mt-2'>
-              When enabled, NutriData will re-apply sorting automatically as new items load.
-            </p>
+            <div className='mt-2 space-y-2'>
+              <label className='flex items-center justify-between py-1'>
+                <span className='text-sm font-medium'>Auto resort results</span>
+                <input
+                  type='checkbox'
+                  className='h-4 w-4'
+                  checked={settings.autoResort}
+                  onChange={toggleAutoResort}
+                />
+              </label>
+              <p className='text-xs text-muted-foreground'>
+                When enabled, NutriData will re-apply sorting automatically as new items load.
+              </p>
+
+              <label className='flex items-center justify-between py-1'>
+                <span className='text-sm font-medium'>Show cards on search pages</span>
+                <input
+                  type='checkbox'
+                  className='h-4 w-4'
+                  checked={settings.searchUIEnabled}
+                  onChange={toggleSearchUI}
+                />
+              </label>
+              <p className='text-xs text-muted-foreground'>
+                Disable to hide NutriData cards and custom sorting in product search/listing pages.
+              </p>
+            </div>
           </section>
 
           <div className='flex items-center gap-3'>

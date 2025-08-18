@@ -35,8 +35,7 @@
         "*://shop.rewe.de/products/*",
         "*://www.amazon.de/*",
         "*://www.amazon.co.uk/*",
-        "*://tienda.mercadona.es/*",
-        "*://www.rewe.de/shop/*"
+        "*://tienda.mercadona.es/*"
       ],
       "run_at": "document_end",
       "js": ["src/main.ts"]

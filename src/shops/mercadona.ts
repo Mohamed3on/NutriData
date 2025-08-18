@@ -150,21 +150,41 @@ async function getOrFetchProductData(
   }
 
   // Store in cache using cacheUtils
-  const dataToCache: MercadonaProductCache = {
-    nutrientInfo,
-    priceInfo,
-    timestamp: Date.now(),
+  // Only cache when both nutrientInfo and priceInfo are present and nutrientInfo appears complete
+  const parse = (v?: string | null) => {
+    if (!v) return null;
+    const n = parseFloat(
+      String(v)
+        .replace(/[^0-9.,-]/g, '')
+        .replace(',', '.')
+    );
+    return isNaN(n) ? null : n;
   };
+  const isComplete =
+    nutrientInfo &&
+    parse(nutrientInfo.protein) !== null &&
+    parse(nutrientInfo.carbs) !== null &&
+    parse(nutrientInfo.fat) !== null &&
+    parse(nutrientInfo.sugar) !== null &&
+    parse(nutrientInfo.calories) !== null &&
+    !!priceInfo;
 
-  // Note: setCachedData expects a type compatible with `CachedData` from types.ts
-  // which includes `metrics`. Our Mercadona-specific cache doesn't have metrics (yet).
-  // We'll pass our specific structure. This relies on setCachedData being flexible enough.
-  // If issues arise, we might need to adjust types or cacheUtils.
-  await setCachedData(cacheKey, dataToCache as any); // Using 'as any' for now due to type mismatch potential
-  console.log(
-    `Mercadona: Stored data in chrome.storage cache for Product ID: ${productId}`,
-    dataToCache
-  );
+  if (isComplete) {
+    const dataToCache: MercadonaProductCache = {
+      nutrientInfo,
+      priceInfo,
+      timestamp: Date.now(),
+    };
+
+    // Note: setCachedData expects a type compatible with `CachedData` from types.ts
+    await setCachedData(cacheKey, dataToCache as any);
+    console.log(
+      `Mercadona: Stored data in chrome.storage cache for Product ID: ${productId}`,
+      dataToCache
+    );
+  } else {
+    console.warn('Mercadona: Skipping cache due to incomplete data.');
+  }
 
   return { nutrientInfo, priceInfo };
 }

@@ -1,7 +1,7 @@
 import { CachedData } from './types';
 
 declare const chrome: any;
-const CACHE_EXPIRATION = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+const CACHE_EXPIRATION = 365 * 24 * 60 * 60 * 1000; // 1 year in milliseconds
 
 export async function getCachedData(url: string): Promise<CachedData | null> {
   return new Promise((resolve) => {

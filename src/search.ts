@@ -5,7 +5,7 @@ import { Metrics, NutrientInfo } from './types';
 import './index.css';
 import { detectShop } from './shops/detectShop';
 import { createRoot } from 'react-dom/client';
-import { isShopEnabled, isAutoResortEnabled } from './settings';
+import { isShopEnabled, isAutoResortEnabled, isSearchUIEnabled } from './settings';
 
 let lastSort: { metric: keyof Metrics | keyof NutrientInfo; ascending: boolean } | null = null;
 
@@ -49,10 +49,12 @@ async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, asce
 
   // Sort the array
   containersWithMetrics.sort((a, b) => {
-    // Handle 'N/A' values
-    if (isNaN(a.metricValue) && isNaN(b.metricValue)) return 0;
-    if (isNaN(a.metricValue)) return ascending ? 1 : -1;
-    if (isNaN(b.metricValue)) return ascending ? -1 : 1;
+    const aNaN = isNaN(a.metricValue);
+    const bNaN = isNaN(b.metricValue);
+    // Push missing values (NaN) to the end regardless of order
+    if (aNaN && bNaN) return 0;
+    if (aNaN) return 1;
+    if (bNaN) return -1;
 
     return ascending ? a.metricValue - b.metricValue : b.metricValue - a.metricValue;
   });
@@ -90,6 +92,8 @@ async function main() {
   try {
     const enabled = await isShopEnabled();
     if (!enabled) return;
+    const searchUI = await isSearchUIEnabled();
+    if (!searchUI) return;
     const shop = detectShop();
     const isSearchPage = !!document.querySelector(shop.selectors.productList);
     if (isSearchPage) {

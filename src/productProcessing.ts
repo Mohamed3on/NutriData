@@ -3,7 +3,20 @@ import { calculateMetrics } from './metrics';
 import { fetchProductData, createMetricsElement } from './domUtils';
 import { getCachedData, setCachedData } from './cacheUtils';
 import { detectShop } from './shops/detectShop';
-import { isAutoResortEnabled } from './settings';
+import { isAutoResortEnabled, isSearchUIEnabled } from './settings';
+
+function parseNumeric(value?: string | null): number | null {
+  if (!value) return null;
+  const cleaned = value.replace(/[^0-9.,-]/g, '').replace(',', '.');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+function isNutrientInfoComplete(nutrientInfo: NutrientInfo | null | undefined): boolean {
+  if (!nutrientInfo) return false;
+  const requiredKeys: (keyof NutrientInfo)[] = ['protein', 'carbs', 'fat', 'sugar', 'calories'];
+  return requiredKeys.every((key) => parseNumeric(nutrientInfo[key]) !== null);
+}
 
 // Main function to process all product cards
 export async function processAllProductCards(): Promise<void> {
@@ -17,6 +30,8 @@ export async function processAllProductCards(): Promise<void> {
 // Process individual product card
 export async function processProductCard(card: Element): Promise<void> {
   try {
+    const searchUI = await isSearchUIEnabled();
+    if (!searchUI) return;
     if (isCardAlreadyProcessed(card)) return;
 
     const url = getProductUrl(card);
@@ -60,21 +75,16 @@ async function getProductData(
   cleanUrl.search = '';
 
   const cachedData = await getCachedData(cleanUrl.toString());
-  if (cachedData) {
+  if (cachedData && isNutrientInfoComplete(cachedData.nutrientInfo)) {
     return { nutrientInfo: cachedData.nutrientInfo, metrics: cachedData.metrics };
   }
 
   const doc = await fetchProductData(url);
   const nutrientInfo = await detectShop().getNutrientInfo(doc);
 
-  if (!nutrientInfo || Object.values(nutrientInfo).every((value) => value === '')) {
-    console.log('Nutrient information not available for this product');
-    // Cache the "no nutrients available" result
-    await setCachedData(cleanUrl.toString(), {
-      nutrientInfo: null,
-      metrics: null,
-      timestamp: Date.now(),
-    });
+  if (!isNutrientInfoComplete(nutrientInfo)) {
+    console.log('Nutrient information incomplete or unavailable for this product');
+    // Do not cache incomplete data
     return { nutrientInfo: null, metrics: null };
   }
 

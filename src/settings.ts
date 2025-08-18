@@ -5,6 +5,7 @@ export type ShopKey = 'rewe' | 'amazon' | 'mercadona';
 export interface ExtensionSettings {
   enabledShops: Record<ShopKey, boolean>;
   autoResort: boolean;
+  searchUIEnabled: boolean;
 }
 
 export const defaultSettings: ExtensionSettings = {
@@ -15,6 +16,8 @@ export const defaultSettings: ExtensionSettings = {
   },
   // Default off per request
   autoResort: false,
+  // Show metrics cards and related UI on search result pages by default
+  searchUIEnabled: true,
 };
 
 export function getCurrentShopKey(): ShopKey {
@@ -35,6 +38,7 @@ export async function getSettings(): Promise<ExtensionSettings> {
           mercadona: stored.enabledShops?.mercadona ?? defaultSettings.enabledShops.mercadona,
         },
         autoResort: stored.autoResort ?? defaultSettings.autoResort,
+        searchUIEnabled: stored.searchUIEnabled ?? defaultSettings.searchUIEnabled,
       };
       resolve(merged);
     });
@@ -56,4 +60,9 @@ export async function isShopEnabled(): Promise<boolean> {
 export async function isAutoResortEnabled(): Promise<boolean> {
   const settings = await getSettings();
   return Boolean(settings.autoResort);
+}
+
+export async function isSearchUIEnabled(): Promise<boolean> {
+  const settings = await getSettings();
+  return Boolean(settings.searchUIEnabled);
 }
