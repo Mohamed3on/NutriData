@@ -178,22 +178,22 @@ export const reweShop: Shop = {
   },
 
   getInsertionPoint(element: HTMLElement): HTMLElement | null {
-    return element.querySelector('.pdsr-CallToAction--Details');
+    return element.querySelector(this.selectors?.productDetailCallToAction || '');
   },
 
   insertMetricsIntoCard(card: Element, metricsElement: HTMLElement): void {
-    const detailsWrapper = card.querySelector('.search-service-productDetailsWrapper');
-    const grammageElement = detailsWrapper?.querySelector('.search-service-productGrammage');
+    // Find the grammage element with the new class
+    const grammageElement = card.querySelector(this.selectors?.grammage || '');
 
     if (grammageElement && grammageElement.parentNode) {
+      // Insert metrics after the grammage element
       grammageElement.parentNode.insertBefore(metricsElement, grammageElement.nextSibling);
-    } else if (detailsWrapper) {
-      detailsWrapper.appendChild(metricsElement);
-    }
-
-    const productDetails = card.querySelector('.ProductDetailsWrapper_productDetails__7vI_z');
-    if (productDetails instanceof HTMLElement) {
-      productDetails.style.height = 'auto';
+    } else {
+      // Fallback: insert into the content area
+      const contentArea = card.querySelector(this.selectors?.contentArea || '');
+      if (contentArea) {
+        contentArea.appendChild(metricsElement);
+      }
     }
   },
   insertSortSelect(sortSelectElement: HTMLElement, container: HTMLElement): void {
@@ -206,9 +206,17 @@ export const reweShop: Shop = {
     return createCustomSortSelectElement(onSort, 'ml-2', this.getCurrency());
   },
   selectors: {
-    productLink: 'a.search-service-productDetailsLink',
+    // Product listing page selectors
+    productLink: 'a.a-pt__product-tile__link_ApF94J',
     productList: '.search-service-rsTiles',
-    productCard: '.search-service-product',
+    productCard: '.a-pt__product-tile_tw5YJt',
+    grammage: '.a-pt__product-tile__grammage_XuxOmN',
+    contentArea: '.a-pt__product-tile__content-area_lP8kCw',
+
+    // Product detail page selectors
+    productDetailCallToAction: '.pdpr-ProductActionsContainer',
+
+    // Other selectors
     adElement: 'rd-flagship',
     sortSelect: '.rsDisplayoptionsRightHideInMobile',
   },

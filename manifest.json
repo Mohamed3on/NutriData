@@ -33,6 +33,7 @@
       "matches": [
         "*://shop.rewe.de/p/*",
         "*://shop.rewe.de/products/*",
+        "*://www.rewe.de/shop/p/*",
         "*://www.amazon.de/*",
         "*://www.amazon.co.uk/*",
         "*://tienda.mercadona.es/*"

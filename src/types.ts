@@ -44,6 +44,9 @@ export interface Shop {
     adElement: string;
     sortSelect: string;
     productLink: string;
+    grammage?: string;
+    contentArea?: string;
+    productDetailCallToAction?: string;
   };
   createCustomSortSelect: (
     onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
