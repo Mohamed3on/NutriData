@@ -1,13 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
 import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../../types';
 import { createCustomSortSelectElement } from '../../utils/createCustomSortSelect';
 import { Database, Json } from '../../database.types';
 import { ProductData } from './ProductData';
-
-const supabase = createClient<Database>(
-  'https://knoubfoslxselhfbkniu.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtub3ViZm9zbHhzZWxoZmJrbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjQ4NDU1ODAsImV4cCI6MjA0MDQyMTU4MH0.CHq1VVeOxt8gFudDHqVFMbRB0EPs0tBKK0Gr3c-27Mo'
-);
+import { supabase } from '../../config/supabase';
 
 export const getCategories = (doc: Document): string[] => {
   const breadcrumbs = doc.querySelector('.lr-breadcrumbs');
