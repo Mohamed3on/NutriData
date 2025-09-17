@@ -234,18 +234,18 @@ export const mercadonaShop: Shop = {
     return element.querySelector('.private-product-detail__button:last-child');
   },
 
-  insertMetricsIntoCard: (card: Element, metricsElement: HTMLElement): void => {
+  insertMetricsIntoCard: (_card: Element, _metricsElement: HTMLElement): void => {
     console.warn('Mercadona: insertMetricsIntoCard not implemented.');
     // TODO: Implement appending the metrics UI to product cards (if needed for search page later)
   },
 
-  insertSortSelect: (sortSelectElement: HTMLElement, container: HTMLElement): void => {
+  insertSortSelect: (_sortSelectElement: HTMLElement, _container: HTMLElement): void => {
     console.warn('Mercadona: insertSortSelect not implemented.');
     // TODO: Implement adding sort functionality (if needed for search page later)
   },
 
   createCustomSortSelect: (
-    onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
+    _onSort: (metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) => void
   ): React.ReactElement => {
     console.warn('Mercadona: createCustomSortSelect not implemented.');
     // Return a dummy element for now
