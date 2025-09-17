@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "NutriData - Product Nutrition Analyzer for REWE, Amazon & Mercadona",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Analyzes nutrition information for products on supported online shops. (REWE, Amazon & Mercadona)",
-  "permissions": ["storage", "webNavigation"],
+  "permissions": [
+    "storage",
+    "webNavigation"
+  ],
   "background": {
     "service_worker": "background.ts"
   },
@@ -26,8 +29,13 @@
         "*://www.rewe.de/shop/*"
       ],
       "run_at": "document_idle",
-      "js": ["src/search.ts"],
-      "exclude_matches": ["*://shop.rewe.de/products/*", "*://tienda.mercadona.es/product/*"]
+      "js": [
+        "src/search.ts"
+      ],
+      "exclude_matches": [
+        "*://shop.rewe.de/products/*",
+        "*://tienda.mercadona.es/product/*"
+      ]
     },
     {
       "matches": [
@@ -39,7 +47,9 @@
         "*://tienda.mercadona.es/*"
       ],
       "run_at": "document_end",
-      "js": ["src/main.ts"]
+      "js": [
+        "src/main.ts"
+      ]
     }
   ]
 }
