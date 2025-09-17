@@ -4,7 +4,7 @@ import { getCategories, reweShop } from './rewe';
 
 describe('reweShop', () => {
   describe('getPriceAndWeightInfo', () => {
-    it('correctly extracts price and weight information', () => {
+    it('correctly extracts price and weight information', async () => {
       const productData = {
         pricing: {
           price: 105,
@@ -26,7 +26,7 @@ describe('reweShop', () => {
         </html>
       `);
 
-      const result = reweShop.getPriceAndWeightInfo(dom.window.document);
+      const result = await reweShop.getPriceAndWeightInfo(dom.window.document);
 
       expect(result).toEqual({
         price: 1.05,
@@ -35,7 +35,7 @@ describe('reweShop', () => {
       });
     });
 
-    it('correctly extracts price and weight information for Iglo Veggie Love product', () => {
+    it('correctly extracts price and weight information for Iglo Veggie Love product', async () => {
       const productData = {
         pricing: {
           price: 379,
@@ -57,7 +57,7 @@ describe('reweShop', () => {
         </html>
       `);
 
-      const result = reweShop.getPriceAndWeightInfo(dom.window.document);
+      const result = await reweShop.getPriceAndWeightInfo(dom.window.document);
 
       expect(result).toEqual({
         price: 3.79,
@@ -66,7 +66,7 @@ describe('reweShop', () => {
       });
     });
 
-    it('correctly extracts price and weight information for ja! Latte Macchiato product', () => {
+    it('correctly extracts price and weight information for ja! Latte Macchiato product', async () => {
       const productData = {
         pricing: {
           price: 75,
@@ -88,7 +88,7 @@ describe('reweShop', () => {
         </html>
       `);
 
-      const result = reweShop.getPriceAndWeightInfo(dom.window.document);
+      const result = await reweShop.getPriceAndWeightInfo(dom.window.document);
 
       expect(result).toEqual({
         price: 0.75,

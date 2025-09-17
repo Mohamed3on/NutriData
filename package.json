@@ -44,7 +44,7 @@
     "build:firefox": "tsc && vite --config vite.config.firefox.ts build",
     "postbuild:firefox": "node scripts/firefox.postbuild.js",
     "preview": "vite preview",
-    "test": "vitest",
+    "test": "vitest run",
     "semantic-release": "semantic-release",
     "release": "semantic-release",
     "tsc": "tsc"
