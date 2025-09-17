@@ -26,6 +26,7 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
   - 💪 Protein per euro/pound (g/€ or g/£)
   - 🔥 Protein per 100 calories (g)
   - 🍞 Protein to carb ratio
+  - 📊 NutriScore - Custom composite metric (see below)
 - Detailed nutritional info in an easy-to-read format
 - Color-coded metrics for quick assessment (🔴 to 🟢)
 
@@ -35,6 +36,7 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 
 - Nutritional metrics added to each product card
 - **Custom sorting options:**
+  - NutriScore (High to Low)
   - Protein per euro (High to Low)
   - Protein per 100 calories (High to Low)
   - Protein to carb ratio (High to Low)
@@ -48,17 +50,32 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 - 🛒 Supports:
   - REWE online shop (shop.rewe.de) - full support
   - Amazon.de and Amazon.co.uk - alpha support (product pages only, limited to items with nutritional data)
+  - Mercadona.es - alpha support (early stage implementation)
 - 📊 Clear separation of "Protein Content Analysis" and "Nutrients per 100g"
 
-## ⚠️ Amazon Support (Alpha)
+### What is NutriScore in this extension?
+
+The NutriScore shown by NutriData is a custom metric that combines:
+- Protein per 100 calories (65% weight)
+- Protein per currency value (35% weight)  
+- Fiber bonus (up to 30% increase for high-fiber foods)
+
+Higher scores indicate products with better protein density and value. **Note:** This is NOT the official Nutri-Score (A-E) rating system used in some European countries.
+
+## ⚠️ Alpha Support for Amazon & Mercadona
 
 ![CleanShot 2024-08-19 at 1 28 13@2x](https://github.com/user-attachments/assets/73c77dd4-5b4a-4454-a68c-36f8177baef7)
 
-- Currently available for amazon.de and amazon.co.uk
+### Amazon (amazon.de and amazon.co.uk)
 - Limited to product pages only
 - Functionality depends on the availability of nutritional data for each product
 - Many products have incomplete or missing nutritional information
 - Search page support and improvements are planned for future updates
+
+### Mercadona (tienda.mercadona.es)
+- Early stage implementation
+- Limited to product pages
+- Uses OpenFoodFacts API for nutritional data when available
 
 ## 🚀 Automatic Releases
 
