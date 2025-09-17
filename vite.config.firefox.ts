@@ -1,6 +1,3 @@
-import { File } from 'node:buffer';
-// @ts-ignore
-globalThis.File = File;
 
 import { defineConfig } from 'vite';
 import { crx } from '@crxjs/vite-plugin';
