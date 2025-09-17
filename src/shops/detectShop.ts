@@ -11,7 +11,7 @@ type ShopName = 'REWE' | 'AMAZON' | 'MERCADONA';
 function getShopName(): ShopName {
   const hostname = window.location.hostname;
 
-  if (hostname.includes('shop.rewe.de')) {
+  if (hostname.includes('rewe.de')) {
     return 'REWE';
   } else if (hostname.includes('amazon')) {
     // Could be amazon.de, amazon.co.uk, etc.

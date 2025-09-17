@@ -207,11 +207,11 @@ export const reweShop: Shop = {
   },
   selectors: {
     // Product listing page selectors
-    productLink: 'a.a-pt__product-tile__link_ApF94J',
+    productLink: 'a[href^="/shop/p/"]',
     productList: '.search-service-rsTiles',
-    productCard: '.a-pt__product-tile_tw5YJt',
-    grammage: '.a-pt__product-tile__grammage_XuxOmN',
-    contentArea: '.a-pt__product-tile__content-area_lP8kCw',
+    productCard: '[data-tracking-type="product"], div[id][class*="product-tile"]',
+    grammage: '[id$="-grammage"]',
+    contentArea: 'a[aria-labelledby]',
 
     // Product detail page selectors
     productDetailCallToAction: '.pdpr-ProductActionsContainer',
