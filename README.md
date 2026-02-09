@@ -58,7 +58,7 @@ Ever struggled to make healthy choices while shopping online? NutriData is here 
 The NutriScore shown by NutriData is a custom metric that combines:
 - Protein per 100 calories (65% weight)
 - Protein per currency value (35% weight)  
-- Fiber bonus (up to 30% increase for high-fiber foods)
+- Fiber bonus (up to 15% increase for high-fiber foods)
 
 Higher scores indicate products with better protein density and value. **Note:** This is NOT the official Nutri-Score (A-E) rating system used in some European countries.
 

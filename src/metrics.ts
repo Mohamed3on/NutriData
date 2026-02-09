@@ -42,11 +42,11 @@ export function calculateMetrics(
     const fiber = nutrientInfo.fiber ? parseFloat(nutrientInfo.fiber.replace(/[^\d.-]/g, '')) : 0;
 
     // Create adjustment factors:
-    // 1. Fiber bonus: ranges from 1 to 1.3 (up to 30% boost)
+    // 1. Fiber bonus: ranges from 1 to 1.15 (up to 15% boost)
     // - Most foods have 0-4g fiber per 100g
     // - High fiber foods have 4-8g per 100g
     // - Very high fiber foods have >8g per 100g
-    const fiberBonus = fiber > 0 ? 1 + Math.min(fiber / 8, 0.3) : 1;
+    const fiberBonus = fiber > 0 ? 1 + Math.min(fiber / 8, 0.15) : 1;
 
     // Calculate base score with protein metrics (weighted geometric mean)
     const baseScore = Math.pow(ppc100, 0.65) * Math.pow(ppc, 0.35);

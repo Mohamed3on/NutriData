@@ -95,7 +95,8 @@ async function main() {
     const searchUI = await isSearchUIEnabled();
     if (!searchUI) return;
     const shop = detectShop();
-    const isSearchPage = !!document.querySelector(shop.selectors.productList);
+    const isSearchPage = !!document.querySelector(shop.selectors.productList) ||
+      !!document.querySelector(shop.selectors.productCard);
     if (isSearchPage) {
       removeAdElements();
       await processAllProductCards();

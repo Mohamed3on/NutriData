@@ -1,13 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../../types';
 import { createCustomSortSelectElement } from '../../utils/createCustomSortSelect';
-import { Database, Json } from '../../database.types';
 import { ProductData } from './ProductData';
-
-const supabase = createClient<Database>(
-  'https://knoubfoslxselhfbkniu.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtub3ViZm9zbHhzZWxoZmJrbml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjQ4NDU1ODAsImV4cCI6MjA0MDQyMTU4MH0.CHq1VVeOxt8gFudDHqVFMbRB0EPs0tBKK0Gr3c-27Mo'
-);
 
 export const getCategories = (doc: Document): string[] => {
   const breadcrumbs = doc.querySelector('.lr-breadcrumbs');
@@ -77,39 +70,6 @@ const getRewePriceAndWeightInfo = (data: ProductData): PriceAndWeightInfo => {
   return { price, weight, pricePerKg };
 };
 
-const saveDataToDb = async (doc: Document, nutritionalData: NutrientInfo) => {
-  const productData = getProductData(doc);
-
-  if (productData) {
-    const priceAndWeightInfo = getRewePriceAndWeightInfo(productData);
-    const transformedData: Database['public']['Tables']['product']['Insert'] = {
-      shop: 'rewe',
-      url: productData?.productDetailsLink,
-      name: productData?.productName,
-      description: productData?.description?.default,
-      brand: productData?.brandKey,
-      manufacturer: productData?.manufacturer?.name,
-      image_url: productData?.mediaInformation?.[0]?.mediaUrl,
-      Ingredients: productData.ingredientStatement,
-      allergens: productData.allergenStatement,
-      categories: getCategories(doc),
-      shop_id: productData?.productId,
-      price: priceAndWeightInfo.price,
-      price_per_unit: priceAndWeightInfo.pricePerKg,
-      nutritional_data: nutritionalData as unknown as Json,
-      gtin: productData.gtin,
-    };
-
-    const { error } = await supabase.from('product').upsert(transformedData, {
-      onConflict: 'url',
-    });
-
-    if (error) {
-      console.error('Error saving product data to Supabase:', error);
-    }
-  }
-};
-
 export const reweShop: Shop = {
   name: 'rewe',
   getCurrency(): '€' | '£' {
@@ -153,8 +113,6 @@ export const reweShop: Shop = {
             return acc;
           }, {} as NutrientInfo);
 
-        await saveDataToDb(doc, nutritionalData);
-
         return nutritionalData;
       } catch (error) {
         console.error('Error parsing propstore content:', error);
@@ -189,10 +147,16 @@ export const reweShop: Shop = {
       // Insert metrics after the grammage element
       grammageElement.parentNode.insertBefore(metricsElement, grammageElement.nextSibling);
     } else {
-      // Fallback: insert into the content area
-      const contentArea = card.querySelector(this.selectors?.contentArea || '');
-      if (contentArea) {
-        contentArea.appendChild(metricsElement);
+      // Fallback for lrms tiles: insert after product info
+      const productInfo = card.querySelector('.lrms-productInformation');
+      if (productInfo && productInfo.parentNode) {
+        productInfo.parentNode.insertBefore(metricsElement, productInfo.nextSibling);
+      } else {
+        // Fallback: insert into the content area
+        const contentArea = card.querySelector(this.selectors?.contentArea || '');
+        if (contentArea) {
+          contentArea.appendChild(metricsElement);
+        }
       }
     }
   },
@@ -207,9 +171,9 @@ export const reweShop: Shop = {
   },
   selectors: {
     // Product listing page selectors
-    productLink: 'a[href^="/shop/p/"]',
+    productLink: 'a[href^="/shop/p/"], a[href^="/shop/products/"]',
     productList: '.search-service-rsTiles',
-    productCard: '[data-tracking-type="product"], div[id][class*="product-tile"]',
+    productCard: '[data-tracking-type="product"], div[id][class*="product-tile"], .lrms-productTile',
     grammage: '[id$="-grammage"]',
     contentArea: 'a[aria-labelledby]',
 
