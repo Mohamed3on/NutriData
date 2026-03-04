@@ -182,6 +182,6 @@ export const reweShop: Shop = {
 
     // Other selectors
     adElement: 'rd-flagship',
-    sortSelect: '.rsDisplayoptionsRightHideInMobile',
+    sortSelect: '.rsDisplayoptionsRightHideInMobile, .productCountWrapper',
   },
 };

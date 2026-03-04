@@ -106,14 +106,12 @@ async function main() {
       const hasMetricsCard = !!document.querySelector('.nutri-data-metrics');
 
       if (hasMetricsCard) {
-        const existingSelect = document.querySelector(
-          shop.selectors.sortSelect
-        ) as HTMLSelectElement;
-        if (existingSelect) {
+        const sortContainer = document.querySelector<HTMLElement>(shop.selectors.sortSelect);
+        if (sortContainer) {
           const customSortSelectContainer = document.createElement('div');
           const root = createRoot(customSortSelectContainer);
           root.render(shop.createCustomSortSelect(handleSort));
-          shop.insertSortSelect(customSortSelectContainer, existingSelect);
+          shop.insertSortSelect(customSortSelectContainer, sortContainer);
         }
       }
     }
