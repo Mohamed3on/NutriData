@@ -4,7 +4,7 @@ import { Metrics, NutrientInfo } from './types';
 import './index.css';
 import { detectShop } from './shops/detectShop';
 import { createRoot } from 'react-dom/client';
-import { isShopEnabled, isAutoResortEnabled, loadSettings } from './settings';
+import { isShopEnabled, isAutoSortEnabled, loadSettings } from './settings';
 
 let lastSort: { metric: keyof Metrics | keyof NutrientInfo; ascending: boolean } | null = null;
 
@@ -70,14 +70,13 @@ function handleSort(metric: keyof Metrics | keyof NutrientInfo, ascending: boole
 }
 
 document.addEventListener('nutridata:resort', () => {
-  isAutoResortEnabled().then((enabled) => {
+  isAutoSortEnabled().then((enabled) => {
     if (!enabled) return;
-    // Only resort on supported shops
     const shop = detectShop();
     if (!shop) return;
-    if (lastSort) {
-      sortProductCards(lastSort.metric, lastSort.ascending);
-    }
+    // Default to NutriScore if user hasn't picked a different sort
+    const sort = lastSort ?? { metric: 'nutriScore' as keyof Metrics, ascending: false };
+    sortProductCards(sort.metric, sort.ascending);
   });
 });
 

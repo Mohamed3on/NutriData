@@ -18,8 +18,8 @@ function OptionsApp() {
     }));
   };
 
-  const toggleAutoResort = () => {
-    setSettings((prev) => ({ ...prev, autoResort: !prev.autoResort }));
+  const toggleAutoSort = () => {
+    setSettings((prev) => ({ ...prev, autoSortByNutriScore: !prev.autoSortByNutriScore }));
   };
 
   const toggleSearchUI = () => {
@@ -88,16 +88,16 @@ function OptionsApp() {
 
             <div className='mt-2 space-y-2'>
               <label className='flex items-center justify-between py-1'>
-                <span className='text-sm font-medium'>Auto resort results</span>
+                <span className='text-sm font-medium'>Auto-sort by NutriScore</span>
                 <input
                   type='checkbox'
                   className='h-4 w-4'
-                  checked={settings.autoResort}
-                  onChange={toggleAutoResort}
+                  checked={settings.autoSortByNutriScore}
+                  onChange={toggleAutoSort}
                 />
               </label>
               <p className='text-xs text-muted-foreground'>
-                When enabled, NutriData will re-apply sorting automatically as new items load.
+                Automatically sort search results by NutriScore (best first).
               </p>
 
               <label className='flex items-center justify-between py-1'>

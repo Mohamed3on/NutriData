@@ -4,7 +4,7 @@ export type ShopKey = 'rewe' | 'amazon' | 'mercadona';
 
 export interface ExtensionSettings {
   enabledShops: Record<ShopKey, boolean>;
-  autoResort: boolean;
+  autoSortByNutriScore: boolean;
   searchUIEnabled: boolean;
 }
 
@@ -14,8 +14,7 @@ export const defaultSettings: ExtensionSettings = {
     amazon: true,
     mercadona: true,
   },
-  // Default off per request
-  autoResort: false,
+  autoSortByNutriScore: false,
   // Show metrics cards and related UI on search result pages by default
   searchUIEnabled: true,
 };
@@ -37,7 +36,7 @@ export async function getSettings(): Promise<ExtensionSettings> {
           amazon: stored.enabledShops?.amazon ?? defaultSettings.enabledShops.amazon,
           mercadona: stored.enabledShops?.mercadona ?? defaultSettings.enabledShops.mercadona,
         },
-        autoResort: stored.autoResort ?? defaultSettings.autoResort,
+        autoSortByNutriScore: stored.autoSortByNutriScore ?? stored.autoResort ?? defaultSettings.autoSortByNutriScore,
         searchUIEnabled: stored.searchUIEnabled ?? defaultSettings.searchUIEnabled,
       };
       resolve(merged);
@@ -70,9 +69,9 @@ export async function isShopEnabled(): Promise<boolean> {
   return Boolean(settings.enabledShops[key]);
 }
 
-export async function isAutoResortEnabled(): Promise<boolean> {
+export async function isAutoSortEnabled(): Promise<boolean> {
   const settings = cachedSettings ?? await getSettings();
-  return Boolean(settings.autoResort);
+  return Boolean(settings.autoSortByNutriScore);
 }
 
 export async function isSearchUIEnabled(): Promise<boolean> {
