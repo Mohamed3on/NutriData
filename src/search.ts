@@ -1,11 +1,10 @@
-import { processAllProductCards } from './productProcessing';
 import { setupMutationObserver } from './observerSetup';
 
 import { Metrics, NutrientInfo } from './types';
 import './index.css';
 import { detectShop } from './shops/detectShop';
 import { createRoot } from 'react-dom/client';
-import { isShopEnabled, isAutoResortEnabled, isSearchUIEnabled } from './settings';
+import { isShopEnabled, isAutoResortEnabled, loadSettings } from './settings';
 
 let lastSort: { metric: keyof Metrics | keyof NutrientInfo; ascending: boolean } | null = null;
 
@@ -90,29 +89,22 @@ function removeAdElements() {
 
 async function main() {
   try {
+    await loadSettings();
     const enabled = await isShopEnabled();
     if (!enabled) return;
-    const searchUI = await isSearchUIEnabled();
-    if (!searchUI) return;
     const shop = detectShop();
     const isSearchPage = !!document.querySelector(shop.selectors.productList) ||
       !!document.querySelector(shop.selectors.productCard);
     if (isSearchPage) {
       removeAdElements();
-      await processAllProductCards();
       setupMutationObserver();
 
-      // Check if there's a metrics card on the page
-      const hasMetricsCard = !!document.querySelector('.nutri-data-metrics');
-
-      if (hasMetricsCard) {
-        const sortContainer = document.querySelector<HTMLElement>(shop.selectors.sortSelect);
-        if (sortContainer) {
-          const customSortSelectContainer = document.createElement('div');
-          const root = createRoot(customSortSelectContainer);
-          root.render(shop.createCustomSortSelect(handleSort));
-          shop.insertSortSelect(customSortSelectContainer, sortContainer);
-        }
+      const sortContainer = document.querySelector<HTMLElement>(shop.selectors.sortSelect);
+      if (sortContainer) {
+        const customSortSelectContainer = document.createElement('div');
+        const root = createRoot(customSortSelectContainer);
+        root.render(shop.createCustomSortSelect(handleSort));
+        shop.insertSortSelect(customSortSelectContainer, sortContainer);
       }
     }
   } catch (error) {

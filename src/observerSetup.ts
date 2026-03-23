@@ -1,103 +1,64 @@
 import { detectShop } from './shops/detectShop';
 import { processProductCard } from './productProcessing';
-import { isShopEnabled, isAutoResortEnabled, isSearchUIEnabled } from './settings';
+import { getCachedSettings, getCurrentShopKey } from './settings';
+import { unmountRemovedRoots } from './domUtils';
 
 export function setupMutationObserver(): void {
   const targetNode = document.body;
   if (!targetNode) return;
 
-  const observerOptions = {
-    childList: true,
-    subtree: true,
-    characterData: true,
-    attributes: true,
-  };
+  const shop = detectShop();
+  const productCardSelector = shop.selectors.productCard;
+  const shopKey = getCurrentShopKey();
 
   let isSortSelectListenerAdded = false;
-  const observer = new MutationObserver((mutations) => {
-    const sortSelect = document.querySelector('#sorting') as HTMLSelectElement;
-    if (sortSelect && !isSortSelectListenerAdded) {
-      sortSelect.addEventListener('change', updateKey);
-      isSortSelectListenerAdded = true;
+  const inProgressElements = new Set<HTMLElement>();
+  let sweepTimeout: ReturnType<typeof setTimeout>;
+
+  function sweep() {
+    unmountRemovedRoots();
+    const settings = getCachedSettings();
+    if (!settings?.enabledShops[shopKey] || !settings.searchUIEnabled) return;
+
+    const allCards = document.querySelectorAll(productCardSelector);
+    for (const card of allCards) {
+      if (card instanceof HTMLElement && !inProgressElements.has(card)) {
+        inProgressElements.add(card);
+        processProductCard(card)
+          .finally(() => inProgressElements.delete(card));
+      }
     }
 
-    // Set to keep track of elements currently being processed
-    const inProgressElements = new Set<HTMLElement>();
+    if (settings.autoResort) {
+      document.dispatchEvent(new Event('nutridata:resort'));
+    }
+  }
 
-    // Debounce processing to avoid excessive calls
-    let processingTimeout: NodeJS.Timeout;
+  function scheduleSweep() {
+    clearTimeout(sweepTimeout);
+    sweepTimeout = setTimeout(sweep, 400);
+  }
 
-    const processUnprocessedProducts = async () => {
-      const searchUI = await isSearchUIEnabled();
-      if (!searchUI) return;
-      const shop = detectShop();
-      const allProducts = document.querySelectorAll(
-        `${shop.selectors.productCard}:not([data-nutridata-processed])`
-      );
-      allProducts.forEach((product) => {
-        if (product instanceof HTMLElement) {
-          inProgressElements.add(product);
-          processProductCard(product)
-            .then(() => {
-              inProgressElements.delete(product);
-            })
-            .catch((error) => {
-              console.error('Error processing product card:', error);
-              inProgressElements.delete(product);
-            });
-        }
-      });
-    };
-
-    mutations.forEach((mutation) => {
-      if (mutation.type === 'childList') {
-        // Process all added nodes to find product cards
-        mutation.addedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            const products = node.querySelectorAll(detectShop().selectors.productCard);
-            products.forEach((product) => {
-              if (
-                product instanceof HTMLElement &&
-                !product.hasAttribute('data-nutridata-processed')
-              ) {
-                inProgressElements.add(product);
-                processProductCard(product)
-                  .then(() => {
-                    inProgressElements.delete(product);
-                  })
-                  .catch((error) => {
-                    console.error('Error processing product card:', error);
-                    inProgressElements.delete(product);
-                  });
-              }
-            });
-          }
-        });
+  const observer = new MutationObserver(() => {
+    if (!isSortSelectListenerAdded) {
+      const sortSelect = document.querySelector('#sorting') as HTMLSelectElement;
+      if (sortSelect) {
+        sortSelect.addEventListener('change', updateKey);
+        isSortSelectListenerAdded = true;
       }
-
-      // For any mutation, check for unprocessed products after a delay
-      clearTimeout(processingTimeout);
-      processingTimeout = setTimeout(() => {
-        isShopEnabled().then((shopEnabled) => {
-          if (!shopEnabled) return;
-          processUnprocessedProducts();
-          // Trigger a safe resort to re-apply order after re-render or replacements
-          isAutoResortEnabled().then((autoResort) => {
-            if (!autoResort) return;
-            document.dispatchEvent(new Event('nutridata:resort'));
-          });
-        });
-      }, 400);
-    });
+    }
+    scheduleSweep();
   });
 
-  observer.observe(targetNode, observerOptions);
+  observer.observe(targetNode, { childList: true, subtree: true });
+
+  // Process cards already in the DOM
+  sweep();
 
   function updateKey() {
     const customSortSelect = document.querySelector('.nutri-data-sort') as HTMLSelectElement;
     if (customSortSelect) {
-      const event = new CustomEvent('updateKey');
-      customSortSelect.dispatchEvent(event);
+      customSortSelect.dispatchEvent(new CustomEvent('updateKey'));
     }
   }
 }

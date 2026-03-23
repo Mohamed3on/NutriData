@@ -51,18 +51,31 @@ export async function saveSettings(settings: ExtensionSettings): Promise<void> {
   });
 }
 
+// In-memory cache to avoid repeated chrome.storage IPC calls
+let cachedSettings: ExtensionSettings | null = null;
+
+export function getCachedSettings(): ExtensionSettings | null {
+  return cachedSettings;
+}
+
+// Load settings once and cache in memory. Call at content script startup.
+export async function loadSettings(): Promise<ExtensionSettings> {
+  cachedSettings = await getSettings();
+  return cachedSettings;
+}
+
 export async function isShopEnabled(): Promise<boolean> {
-  const settings = await getSettings();
+  const settings = cachedSettings ?? await getSettings();
   const key = getCurrentShopKey();
   return Boolean(settings.enabledShops[key]);
 }
 
 export async function isAutoResortEnabled(): Promise<boolean> {
-  const settings = await getSettings();
+  const settings = cachedSettings ?? await getSettings();
   return Boolean(settings.autoResort);
 }
 
 export async function isSearchUIEnabled(): Promise<boolean> {
-  const settings = await getSettings();
+  const settings = cachedSettings ?? await getSettings();
   return Boolean(settings.searchUIEnabled);
 }

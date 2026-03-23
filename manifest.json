@@ -33,7 +33,9 @@
         "src/search.ts"
       ],
       "exclude_matches": [
+        "*://shop.rewe.de/p/*",
         "*://shop.rewe.de/products/*",
+        "*://www.rewe.de/shop/p/*",
         "*://www.rewe.de/shop/products/*",
         "*://tienda.mercadona.es/product/*"
       ]

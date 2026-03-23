@@ -3,7 +3,7 @@ import { calculateMetrics } from './metrics';
 import { fetchProductData, createMetricsElement } from './domUtils';
 import { getCachedData, setCachedData } from './cacheUtils';
 import { detectShop } from './shops/detectShop';
-import { isAutoResortEnabled, isSearchUIEnabled } from './settings';
+import { isSearchUIEnabled } from './settings';
 
 function parseNumeric(value?: string | null): number | null {
   if (!value) return null;
@@ -18,20 +18,10 @@ function isNutrientInfoComplete(nutrientInfo: NutrientInfo | null | undefined): 
   return requiredKeys.every((key) => parseNumeric(nutrientInfo[key]) !== null);
 }
 
-// Main function to process all product cards
-export async function processAllProductCards(): Promise<void> {
-  const shop = detectShop();
-  const productCards = document.querySelectorAll(shop.selectors.productCard);
-  const promises = Array.from(productCards).map(processProductCard);
-
-  await Promise.allSettled(promises);
-}
-
 // Process individual product card
 export async function processProductCard(card: Element): Promise<void> {
   try {
-    const searchUI = await isSearchUIEnabled();
-    if (!searchUI) return;
+    if (!(await isSearchUIEnabled())) return;
     if (isCardAlreadyProcessed(card)) return;
 
     const url = getProductUrl(card);
@@ -40,23 +30,25 @@ export async function processProductCard(card: Element): Promise<void> {
     const { nutrientInfo, metrics } = await getProductData(url);
     if (!nutrientInfo || !metrics) return;
 
+    if (!card.isConnected) return;
+
     const metricsElement = createMetricsElement(metrics, nutrientInfo);
     const shop = detectShop();
     shop.insertMetricsIntoCard(card, metricsElement);
     adjustCardHeight(card);
-
-    // Trigger re-sort if enabled and sort is active
-    if (await isAutoResortEnabled()) {
-      triggerResortIfNeeded();
-    }
   } catch (error) {
-    console.error('Error processing product card:', error);
+    console.error('[NutriData] Error processing product card:', error);
   }
 }
 
 // Helper functions
 function isCardAlreadyProcessed(card: Element): boolean {
   if (card.hasAttribute('data-nutridata-processed')) {
+    // Metrics div may have been destroyed by the site re-rendering the card's inner content
+    if (!card.querySelector('.nutri-data-metrics')) {
+      card.removeAttribute('data-nutridata-processed');
+      return false;
+    }
     return true;
   }
   card.setAttribute('data-nutridata-processed', 'true');
@@ -83,8 +75,6 @@ async function getProductData(
   const nutrientInfo = await detectShop().getNutrientInfo(doc);
 
   if (!isNutrientInfoComplete(nutrientInfo)) {
-    console.log('Nutrient information incomplete or unavailable for this product');
-    // Do not cache incomplete data
     return { nutrientInfo: null, metrics: null };
   }
 
@@ -103,9 +93,4 @@ function adjustCardHeight(card: Element): void {
       productDetails.style.height = 'auto';
     }
   }
-}
-
-function triggerResortIfNeeded(): void {
-  // Emit a custom event that our sorting layer listens to
-  document.dispatchEvent(new Event('nutridata:resort'));
 }
