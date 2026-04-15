@@ -1,4 +1,23 @@
-import { ColorThresholds } from './types';
+import { ColorThresholds, NutrientInfo } from './types';
+
+export function parseNumeric(value?: string | number | null): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return isNaN(value) ? null : value;
+  const cleaned = value.replace(/[^0-9.,-]/g, '').replace(',', '.');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+// Sugar/fiber/salt/satFat are optional on EU labels (often omitted when ~0).
+// Requiring them was filtering out plenty of legitimate products like meat.
+const REQUIRED_NUTRIENT_KEYS: (keyof NutrientInfo)[] = ['protein', 'carbs', 'fat', 'calories'];
+
+export function isNutrientInfoComplete(
+  nutrientInfo: NutrientInfo | null | undefined
+): nutrientInfo is NutrientInfo {
+  if (!nutrientInfo) return false;
+  return REQUIRED_NUTRIENT_KEYS.every((key) => parseNumeric(nutrientInfo[key]) !== null);
+}
 
 // source: i made them up
 export const COLOR_THRESHOLDS: Record<string, ColorThresholds> = {

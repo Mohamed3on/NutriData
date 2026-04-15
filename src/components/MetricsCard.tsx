@@ -10,9 +10,8 @@ interface MetricsCardProps {
   nutrientInfo: NutrientInfo;
 }
 
-const shop = detectShop();
-
 export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo }) => {
+  const shop = detectShop();
   const metricOrder: (keyof Metrics)[] = [
     'nutriScore',
     'proteinPerCurrency',

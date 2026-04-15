@@ -30,8 +30,11 @@ export interface ColorThresholds {
 export interface Shop {
   name: string;
   getCurrency: (url?: string) => '€' | '£';
-  getNutrientInfo: (doc: Document) => Promise<NutrientInfo>;
+  getNutrientInfo: (doc: Document) => Promise<NutrientInfo | null>;
   getPriceAndWeightInfo: (doc: Document) => Promise<PriceAndWeightInfo>;
+  // Optional: skip the shared HTML fetch when the shop resolves product data via API/cache
+  // (e.g. Mercadona, which returns a synthetic Document carrying only the source URL).
+  fetchProductData?: (url: string) => Promise<Document>;
   // Optional: some shops can provide price/weight info directly from the search card DOM
   getPriceAndWeightInfoFromCard?: (card: Element) => PriceAndWeightInfo | null;
   getInsertionPoint: (element: HTMLElement) => HTMLElement | null;

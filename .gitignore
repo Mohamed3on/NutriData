@@ -27,3 +27,14 @@ dist-ssr
 *.lockb
 
 *.zip
+
+# Transient runtime dirs
+.playwright-cli/
+.wxt/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Large data dumps (not committed — pipeline regenerates these)
+food.parquet

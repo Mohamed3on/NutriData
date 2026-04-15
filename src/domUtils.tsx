@@ -16,7 +16,9 @@ export async function fetchProductData(url: string): Promise<Document> {
   const response = await fetch(url, { signal: fetchController.signal });
   const html = await response.text();
   const parser = new DOMParser();
-  return parser.parseFromString(html, 'text/html');
+  const doc = parser.parseFromString(html, 'text/html');
+  doc.documentElement.dataset.sourceUrl = url;
+  return doc;
 }
 
 // Track React roots so we can unmount them when cards are removed from the DOM
@@ -29,6 +31,19 @@ export function unmountRemovedRoots(): void {
       reactRoots.delete(element);
     }
   }
+}
+
+// Remove a metrics element and unmount its React root synchronously. Without
+// this, removing stale metrics via `el.remove()` leaves the root in the map
+// until the next sweep — during Mercadona's keystroke-driven re-renders this
+// accumulates hundreds of orphan roots per second.
+export function removeMetricsElement(el: Element): void {
+  const root = reactRoots.get(el as HTMLElement);
+  if (root) {
+    root.unmount();
+    reactRoots.delete(el as HTMLElement);
+  }
+  el.remove();
 }
 
 export function createMetricsElement(

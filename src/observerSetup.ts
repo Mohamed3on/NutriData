@@ -8,24 +8,45 @@ export function setupMutationObserver(): void {
   const productCardSelector = shop.selectors.productCard;
   const productListSelector = shop.selectors.productList;
   const shopKey = getCurrentShopKey();
+  const MAX_ACTIVE_CARDS = shop.name === 'MERCADONA' ? 12 : 6;
 
   const inProgressElements = new Set<HTMLElement>();
   let sweepTimeout: ReturnType<typeof setTimeout>;
   let isSortSelectListenerAdded = false;
   let observingList: Element | null = null;
+  let continuationSweepTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  function queueContinuationSweep() {
+    clearTimeout(continuationSweepTimeout);
+    continuationSweepTimeout = setTimeout(() => {
+      if (observingList) sweep();
+    }, 0);
+  }
 
   function sweep() {
     unmountRemovedRoots();
     const settings = getCachedSettings();
     if (!settings?.enabledShops[shopKey] || !settings.searchUIEnabled) return;
 
-    for (const card of document.querySelectorAll(productCardSelector)) {
-      if (!(card instanceof HTMLElement) || card.tagName === 'SCRIPT') continue;
-      if (!inProgressElements.has(card)) {
-        inProgressElements.add(card);
-        processProductCard(card)
-          .finally(() => inProgressElements.delete(card));
-      }
+    const now = Date.now();
+    const queuedCards: HTMLElement[] = [];
+    for (const card of document.querySelectorAll<HTMLElement>(productCardSelector)) {
+      // REWE's card selector can match a <script> too — skip non-element nodes.
+      if (card.tagName === 'SCRIPT') continue;
+      if (inProgressElements.has(card)) continue;
+      const retry = card.getAttribute('data-nutridata-no-data');
+      if (retry && +retry > now) continue;
+      if (card.querySelector('.nutri-data-metrics')) continue;
+      queuedCards.push(card);
+    }
+
+    const availableSlots = Math.max(0, MAX_ACTIVE_CARDS - inProgressElements.size);
+    for (const card of queuedCards.slice(0, availableSlots)) {
+      inProgressElements.add(card);
+      processProductCard(card).finally(() => {
+        inProgressElements.delete(card);
+        queueContinuationSweep();
+      });
     }
 
     if (settings.autoSortByNutriScore) {
@@ -51,7 +72,9 @@ export function setupMutationObserver(): void {
     const list = document.querySelector(productListSelector);
     if (list && list !== observingList) {
       listObserver.disconnect();
-      listObserver.observe(list, { childList: true, subtree: true });
+      // childList-only: Mercadona's React re-renders fire thousands of subtree
+      // mutations per keystroke. We only need card add/remove notifications.
+      listObserver.observe(list, { childList: true });
       observingList = list;
       sweep();
     } else if (!list && observingList) {
@@ -63,9 +86,6 @@ export function setupMutationObserver(): void {
   }
 
   attachToList();
-
-  // Poll for product list appearing/disappearing (SPA navigation).
-  // Cheaper than a MutationObserver on document.body with subtree:true.
   setInterval(attachToList, 1000);
 
   function updateKey() {

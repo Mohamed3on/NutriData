@@ -1,5 +1,6 @@
 import { Metrics, NutrientInfo, PriceAndWeightInfo, Shop } from '../../types';
 import { createCustomSortSelectElement } from '../../utils/createCustomSortSelect';
+import { parseNumeric } from '../../utils';
 import { ProductData } from './ProductData';
 
 export const getCategories = (doc: Document): string[] => {
@@ -39,32 +40,27 @@ const getRewePriceAndWeightInfo = (data: ProductData): PriceAndWeightInfo => {
   }
 
   const match = grammage.match(/(\d+(?:,\d+)?)\s*([a-zA-Z]+)\s*=\s*([\d,]+)\s*€/);
-  if (!match) {
-    return { price, weight, pricePerKg: null };
-  }
+  if (!match) return { price, weight, pricePerKg: null };
 
   const [, amount, unit, priceStr] = match;
-  const amountValue = parseFloat(amount.replace(',', '.'));
-  const priceValue = parseFloat(priceStr.replace(',', '.'));
+  const amountValue = parseNumeric(amount);
+  const priceValue = parseNumeric(priceStr);
+  if (amountValue === null || priceValue === null || amountValue === 0) {
+    return { price, weight, pricePerKg: null };
+  }
 
   let pricePerKg: number | null = null;
   switch (unit.toLowerCase()) {
     case 'kg':
-      pricePerKg = priceValue;
-      break;
-    case 'g':
-      pricePerKg = (priceValue / amountValue) * 1000;
-      break;
     case 'l':
     case 'liter':
     case 'litre':
       pricePerKg = priceValue;
       break;
-  }
-
-  // Add a check for null pricePerKg
-  if (pricePerKg === null) {
-    console.warn(`Unable to calculate pricePerKg for product: ${data.productName}`);
+    case 'g':
+    case 'ml':
+      pricePerKg = (priceValue / amountValue) * 1000;
+      break;
   }
 
   return { price, weight, pricePerKg };
@@ -173,7 +169,7 @@ export const reweShop: Shop = {
     // Product listing page selectors
     productLink: 'a[href^="/shop/p/"], a[href^="/shop/products/"]',
     productList: '.search-service-rsTiles',
-    productCard: '[data-tracking-type="product"], div[id][class*="product-tile"], .lrms-productTile',
+    productCard: '[data-tracking-type="product"], [data-theme="tile-responsive"], .lrms-productTile',
     grammage: '[id$="-grammage"]',
     contentArea: 'a[aria-labelledby]',
 

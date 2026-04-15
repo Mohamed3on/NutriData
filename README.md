@@ -77,6 +77,57 @@ Higher scores indicate products with better protein density and value. **Note:**
 - Limited to product pages
 - Uses OpenFoodFacts API for nutritional data when available
 
+## Offline OFF Cache
+
+NutriData can now consult a bundled Open Food Facts cache before it falls back to the live OFF API. This is meant for Mercadona-style listing pages where long-term caching matters more than live freshness.
+
+The intended flow is:
+
+1. Collect the EANs you care about.
+2. Download an OFF dump from the official data page.
+3. Build compact shard files under `public/off-cache`.
+4. Rebuild the extension.
+
+Install the one required local dependency first:
+
+```bash
+python3 -m pip install duckdb
+```
+
+Example:
+
+```bash
+npm run extract:mercadona-eans -- \
+  --input ./storage-export.json \
+  --output ./mercadona-eans.txt
+
+npm run build:off-cache -- \
+  --dump ~/Downloads/food.parquet \
+  --eans ./mercadona-eans.txt \
+  --out-dir public/off-cache
+```
+
+`storage-export.json` can be produced from the extension service worker console with:
+
+```js
+copy(JSON.stringify(await chrome.storage.local.get(null)))
+```
+
+What the script does:
+
+- Queries the official Open Food Facts Parquet export with DuckDB
+- Filters the dataset down to only the requested EANs
+- Writes compact JSON shards keyed by EAN prefix plus `manifest.json`
+- Writes `missing-eans.txt` for requested codes that were not found in the dump
+
+At runtime the background service worker checks:
+
+1. `chrome.storage.local`
+2. `public/off-cache/manifest.json` and matching shard
+3. Live OFF `/api/v2/product/{ean}` as the final fallback
+
+This keeps the extension off the public OFF API for any product you have already precomputed.
+
 ## 🚀 Automatic Releases
 
 This project uses automatic versioning and release creation. When changes are pushed to the `main` branch, the following process occurs:

@@ -4,60 +4,41 @@ import { fetchProductData, createMetricsElement } from './domUtils';
 import { getCachedData, setCachedData } from './cacheUtils';
 import { detectShop } from './shops/detectShop';
 import { isSearchUIEnabled } from './settings';
+import { isNutrientInfoComplete } from './utils';
 
-function parseNumeric(value?: string | null): number | null {
-  if (!value) return null;
-  const cleaned = value.replace(/[^0-9.,-]/g, '').replace(',', '.');
-  const num = parseFloat(cleaned);
-  return isNaN(num) ? null : num;
+const NO_DATA_ATTR = 'data-nutridata-no-data';
+const NO_DATA_RETRY_MS = 5 * 60 * 1000;
+
+function markNoData(card: Element): void {
+  card.setAttribute(NO_DATA_ATTR, String(Date.now() + NO_DATA_RETRY_MS));
 }
 
-function isNutrientInfoComplete(nutrientInfo: NutrientInfo | null | undefined): boolean {
-  if (!nutrientInfo) return false;
-  const requiredKeys: (keyof NutrientInfo)[] = ['protein', 'carbs', 'fat', 'sugar', 'calories'];
-  return requiredKeys.every((key) => parseNumeric(nutrientInfo[key]) !== null);
-}
-
-// Process individual product card
 export async function processProductCard(card: Element): Promise<void> {
+  if (!(await isSearchUIEnabled())) return;
+
+  const shop = detectShop();
+  const link = card.querySelector(shop.selectors.productLink) as HTMLAnchorElement | null;
+  if (!link?.href) return;
+
+  let result: { nutrientInfo: NutrientInfo | null; metrics: Metrics | null };
   try {
-    if (!(await isSearchUIEnabled())) return;
-    if (isCardAlreadyProcessed(card)) return;
-
-    const url = getProductUrl(card);
-    if (!url) return;
-
-    const { nutrientInfo, metrics } = await getProductData(url);
-    if (!nutrientInfo || !metrics) return;
-
-    if (!card.isConnected) return;
-
-    const metricsElement = createMetricsElement(metrics, nutrientInfo);
-    const shop = detectShop();
-    shop.insertMetricsIntoCard(card, metricsElement);
-    adjustCardHeight(card);
+    result = await getProductData(link.href);
   } catch (error) {
-    console.error('[NutriData] Error processing product card:', error);
+    // Transient (network/rate-limit) — cooldown and retry later.
+    markNoData(card);
+    console.error('[NutriData] getProductData threw:', error);
+    return;
   }
-}
-
-// Helper functions
-function isCardAlreadyProcessed(card: Element): boolean {
-  if (card.hasAttribute('data-nutridata-processed')) {
-    // Metrics div may have been destroyed by the site re-rendering the card's inner content
-    if (!card.querySelector('.nutri-data-metrics')) {
-      card.removeAttribute('data-nutridata-processed');
-      return false;
-    }
-    return true;
+  if (!result.nutrientInfo || !result.metrics) {
+    markNoData(card);
+    return;
   }
-  card.setAttribute('data-nutridata-processed', 'true');
-  return false;
-}
+  if (!card.isConnected) return;
 
-function getProductUrl(card: Element): string | null {
-  const link = card.querySelector(detectShop().selectors.productLink) as HTMLAnchorElement | null;
-  return link ? link.href : null;
+  card.removeAttribute(NO_DATA_ATTR);
+  const metricsElement = createMetricsElement(result.metrics, result.nutrientInfo);
+  shop.insertMetricsIntoCard(card, metricsElement);
+  adjustCardHeight(card);
 }
 
 async function getProductData(
@@ -65,32 +46,34 @@ async function getProductData(
 ): Promise<{ nutrientInfo: NutrientInfo | null; metrics: Metrics | null }> {
   const cleanUrl = new URL(url);
   cleanUrl.search = '';
+  const shop = detectShop();
+  // Mercadona resolves from the bundled dump + in-memory maps — persistent
+  // URL cache just adds storage I/O. REWE/Amazon benefit (HTML parse is slow).
+  const useUrlCache = shop.name !== 'MERCADONA';
 
-  const cachedData = await getCachedData(cleanUrl.toString());
-  if (cachedData && isNutrientInfoComplete(cachedData.nutrientInfo)) {
-    return { nutrientInfo: cachedData.nutrientInfo, metrics: cachedData.metrics };
+  if (useUrlCache) {
+    const cached = await getCachedData(cleanUrl.toString());
+    if (cached && isNutrientInfoComplete(cached.nutrientInfo)) {
+      return { nutrientInfo: cached.nutrientInfo, metrics: cached.metrics };
+    }
   }
 
-  const doc = await fetchProductData(url);
-  const nutrientInfo = await detectShop().getNutrientInfo(doc);
+  const doc = shop.fetchProductData ? await shop.fetchProductData(url) : await fetchProductData(url);
+  const nutrientInfo = await shop.getNutrientInfo(doc);
+  if (!isNutrientInfoComplete(nutrientInfo)) return { nutrientInfo: null, metrics: null };
 
-  if (!isNutrientInfoComplete(nutrientInfo)) {
-    return { nutrientInfo: null, metrics: null };
-  }
-
-  const priceAndWeightInfo = await detectShop().getPriceAndWeightInfo(doc);
+  const priceAndWeightInfo = await shop.getPriceAndWeightInfo(doc);
   const metrics = calculateMetrics(nutrientInfo, priceAndWeightInfo);
 
-  await setCachedData(cleanUrl.toString(), { nutrientInfo, metrics, timestamp: Date.now() });
+  if (useUrlCache) {
+    await setCachedData(cleanUrl.toString(), { nutrientInfo, metrics, timestamp: Date.now() });
+  }
   return { nutrientInfo, metrics };
 }
 
 function adjustCardHeight(card: Element): void {
-  if (card instanceof HTMLElement) {
-    card.style.height = 'auto';
-    const productDetails: HTMLElement | null = card.querySelector('.search-service-productDetails');
-    if (productDetails) {
-      productDetails.style.height = 'auto';
-    }
-  }
+  if (!(card instanceof HTMLElement)) return;
+  card.style.height = 'auto';
+  const details = card.querySelector<HTMLElement>('.search-service-productDetails');
+  if (details) details.style.height = 'auto';
 }

@@ -67,3 +67,13 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Mercadona: cards (and the listing grid) are sized for the original content.
+   Force the card to grow with our metrics. */
+[data-testid="product-cell"]:has(.nutri-data-metrics) {
+  height: auto !important;
+  align-self: start;
+}
+[data-testid="product-cell"] .product-cell__info {
+  height: auto !important;
+}

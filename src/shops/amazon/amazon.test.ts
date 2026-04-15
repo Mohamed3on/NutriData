@@ -125,9 +125,9 @@ describe('amazonShop', () => {
 
       const nutrientInfo = await amazonShop.getNutrientInfo(dom.window.document);
 
-      expect(nutrientInfo.protein).toBe('0.1 g');
-      expect(nutrientInfo.calories).toBe('418.73 kcal');
-      expect(nutrientInfo.carbs).toBe('8.3 g');
+      expect(nutrientInfo?.protein).toBe('0.1 g');
+      expect(nutrientInfo?.calories).toBe('418.73 kcal');
+      expect(nutrientInfo?.carbs).toBe('8.3 g');
     });
   });
 });

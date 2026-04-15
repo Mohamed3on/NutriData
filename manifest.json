@@ -7,6 +7,15 @@
     "storage",
     "webNavigation"
   ],
+  "host_permissions": [
+    "https://*.algolia.net/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["mercadona-nutrients.json"],
+      "matches": ["*://tienda.mercadona.es/*"]
+    }
+  ],
   "background": {
     "service_worker": "background.ts"
   },

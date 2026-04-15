@@ -35,24 +35,22 @@ export function calculateMetrics(
     metrics.proteinPer100Calories !== 'Infinity' &&
     metrics.proteinPer100Calories !== 'N/A'
   ) {
-    const ppc = parseFloat(metrics.proteinPerCurrency); // g protein per currency
-    const ppc100 = parseFloat(metrics.proteinPer100Calories); // g protein per 100 calories
+    const ppc = parseFloat(metrics.proteinPerCurrency);
+    const ppc100 = parseFloat(metrics.proteinPer100Calories);
 
-    // Parse fiber if it exists, handling unit strings
     const fiber = nutrientInfo.fiber ? parseFloat(nutrientInfo.fiber.replace(/[^\d.-]/g, '')) : 0;
+    const satFat = nutrientInfo.saturatedFat
+      ? parseFloat(nutrientInfo.saturatedFat.replace(/[^\d.-]/g, ''))
+      : 0;
 
-    // Create adjustment factors:
-    // 1. Fiber bonus: ranges from 1 to 1.15 (up to 15% boost)
-    // - Most foods have 0-4g fiber per 100g
-    // - High fiber foods have 4-8g per 100g
-    // - Very high fiber foods have >8g per 100g
+    // Fiber bonus caps at +15% (8g/100g → "very high fiber" threshold).
     const fiberBonus = fiber > 0 ? 1 + Math.min(fiber / 8, 0.15) : 1;
+    // Saturated fat penalty: 1% per g/100g, floored at -50% so butter (~51g) hits the floor.
+    const satFatPenalty = satFat > 0 ? 1 - Math.min(satFat / 100, 0.5) : 1;
 
-    // Calculate base score with protein metrics (weighted geometric mean)
+    // Weighted geometric mean favoring protein-per-calorie over protein-per-currency.
     const baseScore = Math.pow(ppc100, 0.65) * Math.pow(ppc, 0.35);
-
-    // Apply fiber bonus
-    metrics.nutriScore = (baseScore * fiberBonus).toFixed(1);
+    metrics.nutriScore = (baseScore * fiberBonus * satFatPenalty).toFixed(1);
   } else {
     metrics.nutriScore = '0';
   }

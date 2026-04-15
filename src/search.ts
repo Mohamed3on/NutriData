@@ -5,6 +5,7 @@ import './index.css';
 import { detectShop } from './shops/detectShop';
 import { createRoot } from 'react-dom/client';
 import { isShopEnabled, isAutoSortEnabled, loadSettings } from './settings';
+import { parseNumeric } from './utils';
 
 let lastSort: { metric: keyof Metrics | keyof NutrientInfo; ascending: boolean } | null = null;
 
@@ -19,48 +20,42 @@ function findDirectChildContainer(node: Element, container: Element): Element | 
 
 async function sortProductCards(metric: keyof Metrics | keyof NutrientInfo, ascending: boolean) {
   const shop = detectShop();
-  // Disable custom sorting on Amazon entirely
   if (shop.name === 'amazon') return;
-  const productList = document.querySelector(shop.selectors.productList) as HTMLElement;
-  if (!productList) return;
+  // Sort each `.product-container` independently — `style.order` only affects
+  // siblings within the same flex parent, and category pages have one per section.
+  for (const productList of document.querySelectorAll<HTMLElement>(shop.selectors.productList)) {
+    sortProductList(productList, shop.selectors.productCard, metric, ascending);
+  }
+}
 
-  const productCards = Array.from(
-    productList.querySelectorAll(shop.selectors.productCard)
-  ) as HTMLElement[];
+function sortProductList(
+  productList: HTMLElement,
+  productCardSelector: string,
+  metric: keyof Metrics | keyof NutrientInfo,
+  ascending: boolean
+) {
+  const containers = new Set<HTMLElement>();
+  for (const card of productList.querySelectorAll(productCardSelector)) {
+    const direct = findDirectChildContainer(card, productList);
+    if (direct) containers.add(direct as HTMLElement);
+  }
 
-  // Map cards to their direct child containers of productList
-  const containers = productCards
-    .map((card) => findDirectChildContainer(card, productList))
-    .filter((el): el is HTMLElement => Boolean(el));
+  const ranked = Array.from(containers, (container) => ({
+    container,
+    value: parseNumeric(
+      container.querySelector(`.nutri-data-metrics`)?.getAttribute(`data-${metric}`)
+    ),
+  }));
 
-  // Deduplicate containers (some selectors might point inside the same wrapper)
-  const uniqueContainers = Array.from(new Set(containers));
-
-  // Build sortable tuples of container and metric value
-  const containersWithMetrics = uniqueContainers.map((container) => {
-    const metricValue = parseFloat(
-      (container.querySelector(`.nutri-data-metrics`) as HTMLElement)?.getAttribute(
-        `data-${metric}`
-      ) || 'NaN'
-    );
-    return { container, metricValue };
+  ranked.sort((a, b) => {
+    if (a.value === null && b.value === null) return 0;
+    if (a.value === null) return 1;
+    if (b.value === null) return -1;
+    return ascending ? a.value - b.value : b.value - a.value;
   });
 
-  // Sort the array
-  containersWithMetrics.sort((a, b) => {
-    const aNaN = isNaN(a.metricValue);
-    const bNaN = isNaN(b.metricValue);
-    // Push missing values (NaN) to the end regardless of order
-    if (aNaN && bNaN) return 0;
-    if (aNaN) return 1;
-    if (bNaN) return -1;
-
-    return ascending ? a.metricValue - b.metricValue : b.metricValue - a.metricValue;
-  });
-
-  // Apply CSS order instead of moving DOM nodes (Amazon returns early above)
-  containersWithMetrics.forEach(({ container }, index) => {
-    (container as HTMLElement).style.order = index.toString();
+  ranked.forEach(({ container }, index) => {
+    container.style.order = String(index);
   });
 }
 
@@ -92,20 +87,36 @@ async function main() {
     const enabled = await isShopEnabled();
     if (!enabled) return;
     const shop = detectShop();
-    const isSearchPage = !!document.querySelector(shop.selectors.productList) ||
-      !!document.querySelector(shop.selectors.productCard);
-    if (isSearchPage) {
-      removeAdElements();
-      setupMutationObserver();
 
-      const sortContainer = document.querySelector<HTMLElement>(shop.selectors.sortSelect);
-      if (sortContainer) {
-        const customSortSelectContainer = document.createElement('div');
-        const root = createRoot(customSortSelectContainer);
-        root.render(shop.createCustomSortSelect(handleSort));
-        shop.insertSortSelect(customSortSelectContainer, sortContainer);
+    let observerInitialized = false;
+    const tryInit = () => {
+      const hasListing =
+        !!document.querySelector(shop.selectors.productList) ||
+        !!document.querySelector(shop.selectors.productCard);
+      if (!hasListing) return;
+      if (!observerInitialized) {
+        removeAdElements();
+        setupMutationObserver();
+        observerInitialized = true;
       }
-    }
+      if (!document.querySelector('.nutri-data-sort')) {
+        const sortContainer = document.querySelector<HTMLElement>(shop.selectors.sortSelect);
+        if (sortContainer) {
+          const customSortSelectContainer = document.createElement('div');
+          const root = createRoot(customSortSelectContainer);
+          root.render(shop.createCustomSortSelect(handleSort));
+          shop.insertSortSelect(customSortSelectContainer, sortContainer);
+        }
+      }
+    };
+    tryInit();
+    // Re-run on DOM changes (SPA route changes + async renders). Debounced to avoid
+    // thrashing on busy React apps that fire many mutations per second.
+    let initTimeout: ReturnType<typeof setTimeout> | undefined;
+    new MutationObserver(() => {
+      clearTimeout(initTimeout);
+      initTimeout = setTimeout(tryInit, 250);
+    }).observe(document.body, { childList: true, subtree: true });
   } catch (error) {
     console.error('Error in main function:', error);
   }
