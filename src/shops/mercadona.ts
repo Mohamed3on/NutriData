@@ -241,7 +241,7 @@ function parsePriceFromDom(doc: Document): PriceAndWeightInfo | null {
   const refPart = doc.querySelector('.product-format__size')?.getAttribute('aria-label')?.split('|')[1];
   const price = parseNumeric(priceText) ?? undefined;
   const pricePerKg = parseNumeric(refPart) ?? undefined;
-  if (price === undefined && pricePerKg === undefined) return null;
+  if (price === undefined || pricePerKg === undefined) return null;
   return { price, pricePerKg };
 }
 
