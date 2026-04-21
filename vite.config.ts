@@ -16,7 +16,6 @@ export default defineConfig({
       input: {
         main: 'src/main.ts',
         search: 'src/search.ts',
-        background: 'background.ts',
         options: 'options.html',
       },
     },

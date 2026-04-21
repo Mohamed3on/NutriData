@@ -38,6 +38,10 @@ export interface Shop {
   // Optional: some shops can provide price/weight info directly from the search card DOM
   getPriceAndWeightInfoFromCard?: (card: Element) => PriceAndWeightInfo | null;
   getInsertionPoint: (element: HTMLElement) => HTMLElement | null;
+  // Stable key for the currently-displayed product. Used to detect in-place
+  // content swaps (e.g. Mercadona's modal swapping products without changing
+  // URL). Default is URL-only; shops return URL plus a DOM-derived hint.
+  getContentSignature?: (doc: Document) => string;
   insertMetricsIntoCard: (card: Element, metricsElement: HTMLElement) => void;
   getMetricsCardExtraStyle?: () => string;
   insertSortSelect: (sortSelectElement: HTMLElement, container: HTMLElement) => void;

@@ -6,6 +6,7 @@ import { detectShop } from './shops/detectShop';
 import { createRoot } from 'react-dom/client';
 import { isShopEnabled, isAutoSortEnabled, loadSettings } from './settings';
 import { parseNumeric } from './utils';
+import { debounce } from './utils/debounce';
 
 let lastSort: { metric: keyof Metrics | keyof NutrientInfo; ascending: boolean } | null = null;
 
@@ -112,11 +113,7 @@ async function main() {
     tryInit();
     // Re-run on DOM changes (SPA route changes + async renders). Debounced to avoid
     // thrashing on busy React apps that fire many mutations per second.
-    let initTimeout: ReturnType<typeof setTimeout> | undefined;
-    new MutationObserver(() => {
-      clearTimeout(initTimeout);
-      initTimeout = setTimeout(tryInit, 250);
-    }).observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(debounce(tryInit, 250)).observe(document.body, { childList: true, subtree: true });
   } catch (error) {
     console.error('Error in main function:', error);
   }

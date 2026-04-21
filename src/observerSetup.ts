@@ -2,6 +2,7 @@ import { detectShop } from './shops/detectShop';
 import { processProductCard } from './productProcessing';
 import { getCachedSettings, getCurrentShopKey } from './settings';
 import { unmountRemovedRoots, abortPendingFetches } from './domUtils';
+import { debounce } from './utils/debounce';
 
 export function setupMutationObserver(): void {
   const shop = detectShop();
@@ -11,10 +12,10 @@ export function setupMutationObserver(): void {
   const MAX_ACTIVE_CARDS = shop.name === 'MERCADONA' ? 12 : 6;
 
   const inProgressElements = new Set<HTMLElement>();
-  let sweepTimeout: ReturnType<typeof setTimeout>;
   let isSortSelectListenerAdded = false;
   let observingList: Element | null = null;
   let continuationSweepTimeout: ReturnType<typeof setTimeout> | undefined;
+  const debouncedSweep = debounce(sweep, 400);
 
   function queueContinuationSweep() {
     clearTimeout(continuationSweepTimeout);
@@ -62,8 +63,7 @@ export function setupMutationObserver(): void {
         isSortSelectListenerAdded = true;
       }
     }
-    clearTimeout(sweepTimeout);
-    sweepTimeout = setTimeout(sweep, 400);
+    debouncedSweep();
   }
 
   const listObserver = new MutationObserver(onListMutation);

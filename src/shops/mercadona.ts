@@ -234,15 +234,25 @@ function injectLinks(map: ProductIdMap, cards: NodeListOf<HTMLElement>): number 
   else document.addEventListener('DOMContentLoaded', start);
 }
 
-function parsePriceFromDom(doc: Document): PriceAndWeightInfo | null {
+function parsePriceFromDom(root: ParentNode): PriceAndWeightInfo | null {
   // The size aria-label format is "<size> | <X €/kg>" — left side varies (e.g.
   // "Package 4 packs (130 g)") so we only rely on the right side.
-  const priceText = doc.querySelector('[data-testid="product-price"]')?.textContent;
-  const refPart = doc.querySelector('.product-format__size')?.getAttribute('aria-label')?.split('|')[1];
+  const priceText = root.querySelector('[data-testid="product-price"]')?.textContent;
+  const refPart = root.querySelector('.product-format__size')?.getAttribute('aria-label')?.split('|')[1];
   const price = parseNumeric(priceText) ?? undefined;
   const pricePerKg = parseNumeric(refPart) ?? undefined;
   if (price === undefined || pricePerKg === undefined) return null;
   return { price, pricePerKg };
+}
+
+// Mercadona stacks detail panels: the open product modal sits on top of the
+// underlying full-page detail, both with `.private-product-detail`. Without
+// scoping, `querySelector` picks the first in DOM order, which mixes the
+// modal's price with the underlying page's product. Prefer the topmost modal
+// detail, fall back to the full-page detail.
+function activeDetailRoot(doc: Document | Element): Element | null {
+  const modalDetails = doc.querySelectorAll('.modal-content .private-product-detail');
+  return modalDetails[modalDetails.length - 1] ?? doc.querySelector('.private-product-detail');
 }
 
 function extractProductId(doc: Document): string | null {
@@ -263,7 +273,8 @@ export const mercadonaShop: Shop = {
     // Skip DOM parse for the synthetic listing doc (empty body); go straight
     // to the bootstrap-warmed price map.
     if (!doc.documentElement.dataset.sourceUrl) {
-      const fromDom = parsePriceFromDom(doc);
+      const root = activeDetailRoot(doc);
+      const fromDom = root ? parsePriceFromDom(root) : null;
       if (fromDom) return fromDom;
     }
     const productId = extractProductId(doc);
@@ -279,7 +290,12 @@ export const mercadonaShop: Shop = {
   },
 
   getInsertionPoint: (element: HTMLElement): HTMLElement | null =>
-    element.querySelector('.private-product-detail__button:last-child'),
+    activeDetailRoot(element)?.querySelector<HTMLElement>('.private-product-detail__button:last-child') ?? null,
+
+  getContentSignature: (doc: Document): string => {
+    const h1 = activeDetailRoot(doc)?.querySelector('h1')?.textContent?.trim() ?? '';
+    return `${window.location.href}|${h1}`;
+  },
 
   insertMetricsIntoCard: (card: Element, metricsElement: HTMLElement): void => {
     // Unmount any stale .nutri-data-metrics roots before re-inserting; React

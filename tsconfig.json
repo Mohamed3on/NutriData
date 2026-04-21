@@ -21,5 +21,5 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "background.ts"]
+  "include": ["src"]
 }
