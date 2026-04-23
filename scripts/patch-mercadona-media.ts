@@ -1,0 +1,766 @@
+#!/usr/bin/env bun
+// Resumable fetch + site regeneration for the deployed Mercadona page.
+//
+// Phase 1 (fetch, resumable):
+//   - Parse product IDs from the pristine HTML (with Spanish display names).
+//   - Load any rows already in data/mercadona-media.jsonl — those IDs are
+//     skipped. The jsonl is append-only; each successful fetch is written and
+//     flushed immediately, so Ctrl-C (or a rate-limit wall) is safe: just run
+//     the script again when you're unblocked.
+//   - Fetch missing IDs with modest concurrency + retry/backoff. Failed IDs
+//     are NOT persisted and will be retried on the next run.
+//
+// Phase 2 (generate):
+//   - Merge jsonl rows with the nutrients bundle, compute NutriScore /
+//     protein-per-€ / protein-per-100-kcal (same formula as src/metrics.ts),
+//     and emit the final index.html with search + sort dropdown.
+
+import { appendFile, open, readFile, writeFile, access } from 'node:fs/promises';
+
+const SOURCE_HTML = '/Users/mohamed/personal/extensions/NutriData/mercadona-nutriscore.html';
+const HTML = '/Users/mohamed/personal/extensions/mercadona-protein-site/index.html';
+const NUTRIENTS_BUNDLE = '/Users/mohamed/personal/extensions/NutriData/public/mercadona-nutrients.json';
+const JSONL = '/Users/mohamed/personal/extensions/NutriData/data/mercadona-media.jsonl';
+const API = 'https://tienda.mercadona.es/api';
+const CONCURRENCY = 3;
+const RETRIES = 0; // resumable — let blocked requests drop fast and pick up next run
+const JITTER_MS = [200, 500]; // per-request sleep between calls in each worker
+
+// Mercadona is fronted by Akamai Bot Manager. Mirroring a real browser session
+// (headers + _abck/bm_sz cookies) is the only way to get through. Grab them
+// from devtools: right-click a /api/products/* request → Copy as cURL, then
+// paste the cookie string into MERCADONA_COOKIE. Tokens last ~1 hour; on
+// expiry you'll see 403s again — refresh the env var and rerun.
+const COOKIE = process.env.MERCADONA_COOKIE || '';
+const UA = process.env.MERCADONA_UA
+  || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
+if (!COOKIE) {
+  console.error('WARNING: MERCADONA_COOKIE env var is empty — expect 403s from Akamai');
+}
+
+const BROWSER_HEADERS: Record<string, string> = {
+  'User-Agent': UA,
+  'Accept': '*/*',
+  'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
+  'Content-Type': 'application/json',
+  'DNT': '1',
+  'Referer': 'https://tienda.mercadona.es/categories/112',
+  'sec-ch-ua': '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"macOS"',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-origin',
+  ...(COOKIE ? { Cookie: COOKIE } : {}),
+};
+
+type Photo = { perspective?: number; zoom?: string; regular?: string };
+type ApiRow = {
+  product_id: string;
+  gone?: boolean; // true if 404'd — permanent, skip in generation
+  name_en: string | null;
+  name_es: string | null;
+  ean: string | null;
+  image_primary: string | null;
+  image_nutrition: string | null;
+  price: number | null;
+  price_per_kg: number | null;
+  unit_size: number | null;
+  reference_format: string | null;
+  size_format: string | null;
+  category_id?: number | null;
+  category?: string | null;
+  subcategory_id?: number | null;
+  subcategory?: string | null;
+};
+type FetchResult =
+  | { kind: 'ok'; row: ApiRow }
+  | { kind: 'gone' }
+  | { kind: 'retry'; reason: string };
+
+const fileExists = async (p: string) => access(p).then(() => true).catch(() => false);
+const sleep = (ms: number) => new Promise<void>(res => setTimeout(res, ms));
+
+// --- parse Spanish names from the pristine HTML ---
+const existingHtml = await readFile(SOURCE_HTML, 'utf8');
+const esNames = new Map<string, string>();
+for (const m of existingHtml.matchAll(
+  /<a href="https:\/\/tienda\.mercadona\.es\/product\/(\d+)\/"[\s\S]*?<h3 class="[^"]*">([^<]+)<\/h3>/g
+)) esNames.set(m[1], m[2]);
+console.log(`parsed ${esNames.size} Spanish names`);
+
+// --- load nutrients bundle ---
+const nutrientsBundle: Record<string, (number | null)[]> =
+  JSON.parse(await readFile(NUTRIENTS_BUNDLE, 'utf8'));
+console.log(`loaded ${Object.keys(nutrientsBundle).length} nutrient rows`);
+
+// --- load existing jsonl (resumable) ---
+const existing = new Map<string, ApiRow>();
+if (await fileExists(JSONL)) {
+  for (const line of (await readFile(JSONL, 'utf8')).split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const r: ApiRow = JSON.parse(line);
+      if (r.product_id) existing.set(r.product_id, r);
+    } catch { /* skip malformed */ }
+  }
+}
+console.log(`resumable: ${existing.size} rows already in jsonl`);
+
+// --- photo helpers ---
+const pickZoom = (p?: Photo) => (p?.zoom || p?.regular || null);
+const pickByPersp = (photos: Photo[], persp: number) =>
+  pickZoom(photos.find(p => p.perspective === persp));
+const pickPrimary = (photos: Photo[]) => {
+  const nonNutrition = photos
+    .filter(p => p.perspective !== 9)
+    .sort((a, b) => (a.perspective ?? 99) - (b.perspective ?? 99));
+  return pickZoom(nonNutrition[0]) ?? pickZoom(photos[0]);
+};
+
+async function fetchOne(id: string): Promise<FetchResult> {
+  let lastReason = 'unknown';
+  for (let attempt = 0; attempt <= RETRIES; attempt++) {
+    try {
+      const r = await fetch(`${API}/products/${id}/?lang=en&wh=vlc1`, { headers: BROWSER_HEADERS });
+      if (r.status === 404) return { kind: 'gone' };
+      if (r.status === 403 || r.status === 429 || r.status >= 500) {
+        lastReason = `http_${r.status}`;
+        if (attempt === RETRIES) return { kind: 'retry', reason: lastReason };
+        await sleep(800 * Math.pow(2, attempt) + Math.random() * 400);
+        continue;
+      }
+      if (!r.ok) return { kind: 'retry', reason: `http_${r.status}` };
+      const d: any = await r.json();
+      const photos: Photo[] = d.photos || [];
+      const pi = d.price_instructions || {};
+      return {
+        kind: 'ok',
+        row: {
+          product_id: id,
+          name_en: d.display_name || null,
+          name_es: esNames.get(id) || null,
+          ean: d.ean || null,
+          image_primary: pickPrimary(photos),
+          image_nutrition: pickByPersp(photos, 9),
+          price: pi.unit_price != null ? +pi.unit_price : null,
+          price_per_kg: pi.reference_price != null ? +pi.reference_price : null,
+          unit_size: pi.unit_size != null ? +pi.unit_size : null,
+          reference_format: pi.reference_format || null,
+          size_format: pi.size_format || null,
+        },
+      };
+    } catch (e: any) {
+      lastReason = 'network_' + (e?.code || e?.message || 'err');
+      if (attempt === RETRIES) return { kind: 'retry', reason: lastReason };
+      await sleep(800 * Math.pow(2, attempt));
+    }
+  }
+  return { kind: 'retry', reason: lastReason };
+}
+
+// --- fetch pending ---
+const ids = [...esNames.keys()];
+const pending = ids.filter(id => !existing.has(id));
+console.log(`${pending.length} pending`);
+
+if (pending.length > 0) {
+  const fh = await open(JSONL, 'a');
+  let writeQ: Promise<unknown> = Promise.resolve();
+  const appendRow = (row: ApiRow) => {
+    writeQ = writeQ.then(() => fh.write(JSON.stringify(row) + '\n'));
+    return writeQ;
+  };
+
+  let idx = 0, ok = 0, gone = 0;
+  const retryReasons: Record<string, number> = {};
+  await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+    while (idx < pending.length) {
+      const id = pending[idx++];
+      const res = await fetchOne(id);
+      if (res.kind === 'ok') {
+        existing.set(id, res.row);
+        await appendRow(res.row);
+        ok++;
+      } else if (res.kind === 'gone') {
+        const stub: ApiRow = {
+          product_id: id, gone: true, name_en: null, name_es: esNames.get(id) || null,
+          ean: null, image_primary: null, image_nutrition: null,
+          price: null, price_per_kg: null, unit_size: null,
+          reference_format: null, size_format: null,
+        };
+        existing.set(id, stub);
+        await appendRow(stub);
+        gone++;
+      } else {
+        retryReasons[res.reason] = (retryReasons[res.reason] || 0) + 1;
+      }
+      const total = ok + gone + Object.values(retryReasons).reduce((a, b) => a + b, 0);
+      if (total % 50 === 0) {
+        console.log(`  ${total}/${pending.length}  ok=${ok}  gone(404)=${gone}  retry_later=${total - ok - gone}`);
+      }
+      await sleep(JITTER_MS[0] + Math.random() * (JITTER_MS[1] - JITTER_MS[0]));
+    }
+  }));
+  await writeQ;
+  await fh.close();
+  const retryTotal = Object.values(retryReasons).reduce((a, b) => a + b, 0);
+  console.log(`fetch pass done: ok=${ok}  gone(404)=${gone}  retry_later=${retryTotal}`);
+  if (retryTotal) console.log('  reasons:', retryReasons);
+}
+
+// --- build cards ---
+type Card = {
+  api: ApiRow;
+  protein: number; carbs: number | null; fat: number | null; calories: number;
+  fiber: number | null; satFat: number | null;
+  nutriScore: number | null;
+  proteinPerEuro: number | null;
+  proteinPer100Kcal: number;
+};
+const cards: Card[] = [];
+let skippedNoApi = 0, skippedNoNutr = 0;
+for (const id of ids) {
+  const api = existing.get(id);
+  const ocr = nutrientsBundle[id];
+  if (!api || api.gone) { skippedNoApi++; continue; }
+  if (!ocr) { skippedNoNutr++; continue; }
+  const [protein, carbs, _sugar, fat, calories, fiber, _salt, satFat] = ocr;
+  if (protein == null || calories == null || calories <= 0) continue;
+  const ppc100 = protein / (calories / 100);
+  let ppc: number | null = null;
+  if (api.price_per_kg && api.price_per_kg > 0) {
+    ppc = (protein * 10) / api.price_per_kg;
+  } else if (api.price && api.price > 0 && api.unit_size && api.unit_size > 0) {
+    ppc = (protein * 10 * api.unit_size) / api.price;
+  }
+  let nutriScore: number | null = null;
+  if (ppc != null && isFinite(ppc100)) {
+    const fiberBonus = fiber && fiber > 0 ? 1 + Math.min(fiber / 8, 0.15) : 1;
+    const satFatPenalty = satFat && satFat > 0 ? 1 - Math.min(satFat / 100, 0.5) : 1;
+    nutriScore = Math.pow(ppc100, 0.65) * Math.pow(ppc, 0.35) * fiberBonus * satFatPenalty;
+  }
+  cards.push({
+    api, protein, carbs, fat, calories, fiber, satFat,
+    nutriScore, proteinPerEuro: ppc, proteinPer100Kcal: ppc100,
+  });
+}
+
+cards.sort((a, b) => {
+  const va = a.nutriScore ?? a.proteinPer100Kcal;
+  const vb = b.nutriScore ?? b.proteinPer100Kcal;
+  return vb - va;
+});
+console.log(`built ${cards.length} cards  (skipped: no_api=${skippedNoApi} no_nutrients=${skippedNoNutr})`);
+
+// --- render ---
+const esc = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const resize = (u: string) => `${u.split('?')[0]}?fit=crop&h=300&w=300`;
+
+function lerpColor(v: number | null, good: number, bad: number): string {
+  if (v == null || !isFinite(v)) return '#9ca3af';
+  const red = [220, 38, 38], yellow = [202, 138, 4], green = [22, 163, 74];
+  if (v <= bad) return `rgb(${red.join(',')})`;
+  if (v >= good) return `rgb(${green.join(',')})`;
+  const mid = (good + bad) / 2;
+  const [a, b, f] = v < mid ? [red, yellow, (v - bad) / (mid - bad)] : [yellow, green, (v - mid) / (good - mid)];
+  const c = a.map((ch, i) => Math.round(ch + f * (b[i] - ch)));
+  return `rgb(${c.join(',')})`;
+}
+
+const fmt1 = (n: number | null) => (n == null || !isFinite(n) ? '–' : n.toFixed(1));
+
+const categoryCounts = new Map<string, number>();
+const subsByCategory = new Map<string, Map<string, number>>();
+for (const c of cards) {
+  const cat = c.api.category;
+  const sub = c.api.subcategory;
+  if (cat) {
+    categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1);
+    if (sub && sub !== cat) {
+      let m = subsByCategory.get(cat);
+      if (!m) { m = new Map(); subsByCategory.set(cat, m); }
+      m.set(sub, (m.get(sub) || 0) + 1);
+    }
+  }
+}
+const categoryOptions = [...categoryCounts.entries()]
+  .sort((a, b) => a[0].localeCompare(b[0]))
+  .map(([name, n]) => `<option value="${esc(name)}">${esc(name)} (${n})</option>`)
+  .join('');
+const subsByCategoryJson = JSON.stringify(
+  Object.fromEntries(
+    [...subsByCategory.entries()].map(([cat, m]) => [
+      cat,
+      [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([n, c]) => [n, c] as const),
+    ])
+  )
+);
+
+// ---- basecoat custom-select markup helpers ----
+// Docs: https://basecoatui.com/components/select/
+// Triggering 'change' on the root yields detail.value; basecoat syncs the
+// hidden input + trigger span automatically.
+type BcOption = { value: string; label: string; count?: number | null };
+function renderBcSelect(cfg: {
+  id: string;
+  placeholder: string;
+  options: BcOption[];
+  initialValue?: string;
+  search?: boolean;
+  disabled?: boolean;
+  triggerClass?: string;
+  popoverClass?: string;
+}): string {
+  const { id, placeholder, options, initialValue = '', search = false, disabled = false } = cfg;
+  const triggerClass = cfg.triggerClass || 'w-full sm:w-[12rem]';
+  const popoverClass = cfg.popoverClass || '';
+  const chevron = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground opacity-50 shrink-0"><path d="m6 9 6 6 6-6"/></svg>`;
+  const searchHeader = search
+    ? `<header>
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search…" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" role="combobox" aria-expanded="false" aria-controls="${id}-listbox" aria-labelledby="${id}-trigger" />
+      </header>`
+    : '';
+  const labelFor = (o: BcOption) => o.count != null ? `${o.label} (${o.count.toLocaleString()})` : o.label;
+  const optHtml = options.map((o, i) =>
+    `        <div id="${id}-opt-${i}" role="option" data-value="${esc(o.value)}">${esc(labelFor(o))}</div>`
+  ).join('\n');
+  // Pre-set the trigger label to match the initial option so basecoat doesn't
+  // have to swap it in (avoids a visible "(N)" flicker on slow first paint).
+  const matchedOption = options.find(o => o.value === initialValue);
+  const hasSelection = !!matchedOption && initialValue !== '';
+  const triggerText = matchedOption ? labelFor(matchedOption) : placeholder;
+  const triggerSpanClass = hasSelection ? 'truncate' : 'truncate';
+  return `<div id="${id}" class="select">
+    <button type="button" class="btn-outline ${triggerClass}" id="${id}-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="${id}-listbox"${disabled ? ' disabled="disabled"' : ''}>
+      <span class="${triggerSpanClass}">${esc(triggerText)}</span>
+      ${chevron}
+    </button>
+    <div id="${id}-popover" data-popover aria-hidden="true" class="${popoverClass}">${searchHeader}
+      <div role="listbox" id="${id}-listbox" aria-orientation="vertical" aria-labelledby="${id}-trigger" class="max-h-[60vh] overflow-y-auto">
+${optHtml}
+      </div>
+    </div>
+    <input type="hidden" name="${id}-value" value="${esc(initialValue)}" />
+  </div>`;
+}
+
+const catBcOptions: BcOption[] = [
+  { value: '', label: 'All categories', count: cards.length },
+  ...[...categoryCounts.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name, n]) => ({ value: name, label: name, count: n })),
+];
+const sortBcOptions: BcOption[] = [
+  { value: 'score', label: 'NutriScore (highest)' },
+  { value: 'ppe', label: 'Protein per € (highest)' },
+  { value: 'ppk', label: 'Protein per 100 kcal (highest)' },
+  { value: 'protein', label: 'Most protein per 100 g' },
+  { value: 'cheapest', label: 'Cheapest unit price' },
+  { value: 'bestkg', label: 'Best price per kg/L' },
+  { value: 'lowcal', label: 'Fewest calories per 100 g' },
+  { value: 'alpha', label: 'Name (A → Z)' },
+];
+
+const catSelectHtml = renderBcSelect({
+  id: 'cat', placeholder: 'All categories', options: catBcOptions, search: true,
+  initialValue: '', triggerClass: 'w-full sm:w-[12rem]',
+});
+const subSelectHtml = renderBcSelect({
+  id: 'sub', placeholder: 'All subcategories',
+  options: [{ value: '', label: 'All subcategories' }],
+  initialValue: '', disabled: true, triggerClass: 'w-full sm:w-[12rem]',
+});
+const sortSelectHtml = renderBcSelect({
+  id: 'sort', placeholder: 'NutriScore (highest)', options: sortBcOptions,
+  initialValue: 'score', triggerClass: 'w-full sm:w-[15rem]',
+});
+
+const cardHtml = cards.map((c) => {
+  const nameEn = c.api.name_en || c.api.name_es || '';
+  const nameEs = c.api.name_es && c.api.name_en && c.api.name_es !== c.api.name_en ? c.api.name_es : '';
+  const img = c.api.image_primary ? resize(c.api.image_primary) : '';
+  const subcategory = c.api.subcategory && c.api.subcategory !== c.api.category ? c.api.subcategory : '';
+  const searchText = (nameEn + ' ' + nameEs + ' ' + (c.api.category || '') + ' ' + subcategory).toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  const priceStr = c.api.price != null ? `€${c.api.price.toFixed(2)}` : '';
+  const refStr = c.api.price_per_kg != null
+    ? `€${c.api.price_per_kg.toFixed(2)}/${c.api.reference_format || 'kg'}`
+    : '';
+  const category = c.api.category || '';
+  const breadcrumb = subcategory ? `${category} › ${subcategory}` : category;
+  const sortName = (nameEn || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  const nsC = lerpColor(c.nutriScore, 10, 3);
+  const ppeC = lerpColor(c.proteinPerEuro, 12, 4);
+  const ppkC = lerpColor(c.proteinPer100Kcal, 10, 3);
+  const dataAttrs = `data-name="${esc(searchText)}" data-sortname="${esc(sortName)}" data-cat="${esc(category)}" data-sub="${esc(subcategory)}" data-score="${c.nutriScore ?? ''}" data-ppe="${c.proteinPerEuro ?? ''}" data-ppk="${c.proteinPer100Kcal}" data-protein="${c.protein}" data-cal="${c.calories}" data-price="${c.api.price ?? ''}" data-pricekg="${c.api.price_per_kg ?? ''}"`;
+  const body = [
+    `<h3>${esc(nameEn)}</h3>`,
+    nameEs ? `<p class="es">${esc(nameEs)}</p>` : '',
+    breadcrumb ? `<p class="crumb">${esc(breadcrumb)}</p>` : '',
+    `<div class="metrics"><div><b style="color:${ppeC}">${fmt1(c.proteinPerEuro)}</b><u>g/€</u></div><div><b style="color:${ppkC}">${fmt1(c.proteinPer100Kcal)}</b><u>g/100kcal</u></div></div>`,
+    `<div class="foot"><div class="l"><b>${c.protein.toFixed(1)}g protein</b><span class="tiny">${Math.round(c.calories)} kcal</span></div><div class="r">${priceStr ? `<span class="price">${priceStr}</span>` : ''}${refStr ? `<span class="tiny">${esc(refStr)}</span>` : ''}</div></div>`,
+  ].filter(Boolean).join('');
+  return `<a href="https://tienda.mercadona.es/product/${c.api.product_id}/" target="_blank" rel="noopener" class="card-tile" ${dataAttrs}><div class="imgwrap"><img src="${esc(img)}" alt="" loading="lazy"><span class="rank"></span><span class="score" style="background:${nsC}">${fmt1(c.nutriScore)}</span></div><div class="body">${body}</div></a>`;
+}).join('');
+
+const page = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mercadona — NutriScore Ranked</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Map the shadcn-style theme tokens that basecoat-css ships (--background,
+  // --foreground, --card, …) into Tailwind utilities so classes like
+  // bg-background / text-muted-foreground / border-border resolve.
+  tailwind.config = {
+    // Tailwind v3 Play CDN injects its styles after basecoat's <link>, and
+    // its preflight (border-width: 0, transparent backgrounds) wipes the
+    // basecoat input/select styling. Basecoat ships its own preflight, so
+    // turn Tailwind's off.
+    corePlugins: { preflight: false },
+    theme: {
+      extend: {
+        colors: {
+          border: 'var(--border)',
+          input: 'var(--input)',
+          ring: 'var(--ring)',
+          background: 'var(--background)',
+          foreground: 'var(--foreground)',
+          primary: { DEFAULT: 'var(--primary)', foreground: 'var(--primary-foreground)' },
+          secondary: { DEFAULT: 'var(--secondary)', foreground: 'var(--secondary-foreground)' },
+          destructive: { DEFAULT: 'var(--destructive)', foreground: 'var(--destructive-foreground)' },
+          muted: { DEFAULT: 'var(--muted)', foreground: 'var(--muted-foreground)' },
+          accent: { DEFAULT: 'var(--accent)', foreground: 'var(--accent-foreground)' },
+          popover: { DEFAULT: 'var(--popover)', foreground: 'var(--popover-foreground)' },
+          card: { DEFAULT: 'var(--card)', foreground: 'var(--card-foreground)' },
+        },
+        borderRadius: { lg: 'var(--radius)', md: 'calc(var(--radius) - 2px)', sm: 'calc(var(--radius) - 4px)' },
+      },
+    },
+  };
+</script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/basecoat-css@0.3.11/dist/basecoat.cdn.min.css">
+<script src="https://cdn.jsdelivr.net/npm/basecoat-css@0.3.11/dist/js/all.min.js" defer></script>
+<style>
+  html, body { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+  [data-popover] { transition: none !important; animation: none !important; }
+
+  /* Card component styles extracted from Tailwind utilities. Per-card HTML
+     was ~1.5 KB of repeated class strings × 2,376 cards ≈ 3.5 MB of markup.
+     Single ruleset here saves ~60% of the HTML weight. */
+  .card-tile {
+    display: flex; flex-direction: column; overflow: hidden;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--card-foreground);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    transition: box-shadow 150ms, border-color 150ms, transform 150ms;
+    text-decoration: none;
+    /* content-visibility: auto skips style/layout/paint for cards not near
+       the viewport. With 2k+ cards that's ~90% of the DOM. contain-intrinsic-
+       size keeps the scroll height + grid shape stable. */
+    content-visibility: auto; contain-intrinsic-size: auto 380px;
+  }
+  .card-tile:hover {
+    border-color: var(--ring);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+  .card-tile .imgwrap { position: relative; background: var(--muted); }
+  .card-tile img {
+    aspect-ratio: 1 / 1; width: 100%; object-fit: contain; padding: 0.75rem;
+  }
+  .card-tile .rank, .card-tile .score {
+    position: absolute; top: 0.5rem;
+    display: inline-flex; align-items: center;
+    border-radius: 0.375rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .card-tile .rank {
+    left: 0.5rem;
+    background: var(--foreground); color: var(--background);
+    padding: 2px 6px;
+    font-size: 10px; font-weight: 500;
+  }
+  .card-tile .score {
+    right: 0.5rem;
+    padding: 2px 8px;
+    font-size: 12px; font-weight: 600; color: white;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.1);
+  }
+  .card-tile .body {
+    flex: 1;
+    padding: 0.625rem 0.75rem 0.75rem;
+    display: flex; flex-direction: column; gap: 0.25rem;
+  }
+  .card-tile h3, .card-tile .es, .card-tile .crumb {
+    display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden;
+    margin: 0;
+  }
+  .card-tile h3 {
+    font-size: 14px; font-weight: 500; line-height: 1.25;
+    color: var(--foreground);
+    -webkit-line-clamp: 2;
+  }
+  .card-tile .es {
+    font-size: 12px; font-style: italic;
+    color: var(--muted-foreground);
+    -webkit-line-clamp: 1;
+  }
+  .card-tile .crumb {
+    font-size: 10px; font-weight: 500; letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    -webkit-line-clamp: 1;
+  }
+  .card-tile .metrics {
+    margin-top: 0.375rem;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.5rem;
+    font-size: 12px;
+  }
+  .card-tile .metrics b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card-tile .metrics u { font-weight: 400; color: var(--muted-foreground); text-decoration: none; }
+  .card-tile .foot {
+    margin-top: auto; padding-top: 0.5rem;
+    display: flex; align-items: end; justify-content: space-between; gap: 0.5rem;
+    font-size: 12px; color: var(--muted-foreground);
+  }
+  .card-tile .foot > div { display: flex; flex-direction: column; line-height: 1.2; }
+  .card-tile .foot > .r { align-items: flex-end; }
+  .card-tile .foot b {
+    font-weight: 500; color: var(--foreground);
+    font-variant-numeric: tabular-nums;
+  }
+  .card-tile .foot .tiny { font-size: 11px; font-variant-numeric: tabular-nums; }
+  .card-tile .foot .price {
+    font-weight: 600; color: var(--foreground);
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body class="min-h-screen bg-background text-foreground antialiased">
+<div class="mx-auto max-w-[1400px] px-4 py-6 sm:py-10">
+  <header class="mb-5 sm:mb-7">
+    <div class="flex flex-wrap items-baseline gap-3">
+      <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Mercadona Protein Index</h1>
+      <span class="text-sm tabular-nums text-muted-foreground">${cards.length.toLocaleString()} products</span>
+    </div>
+    <p class="mt-1.5 max-w-3xl text-sm text-muted-foreground">Ranked by <span class="font-medium text-foreground">NutriScore</span> — a geometric mean of protein-per-100-kcal and protein-per-€, lifted by fiber and dragged down by saturated fat.</p>
+  </header>
+
+  <div class="form sticky top-0 z-20 -mx-4 mb-4 border-b border-border bg-background px-4 py-3">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div class="relative min-w-0 flex-1">
+        <svg class="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="search" placeholder="Search products, brands, categories…" autocomplete="off" spellcheck="false" class="input !pl-9">
+      </div>
+      <div class="grid grid-cols-1 gap-2 sm:flex sm:flex-none sm:items-center">
+        ${catSelectHtml}
+        <div id="sub-slot">${subSelectHtml}</div>
+        ${sortSelectHtml}
+      </div>
+    </div>
+    <p id="count" class="mt-2 min-h-[1em] text-xs tabular-nums text-muted-foreground"></p>
+  </div>
+
+  <div id="empty" class="hidden py-16 text-center">
+    <p class="text-sm text-muted-foreground">No products match these filters.</p>
+  </div>
+
+  <div id="grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+${cardHtml}
+  </div>
+
+  <footer class="mt-12 border-t border-border pt-6 text-xs text-muted-foreground">
+    Data harvested from <a href="https://tienda.mercadona.es/" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">tienda.mercadona.es</a>. Nutrient data extracted via OCR by the <a href="https://github.com/mohamed3on/NutriData" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">NutriData</a> extension.
+  </footer>
+</div>
+<script>
+  const SUBS = ${subsByCategoryJson};
+  const grid = document.getElementById('grid');
+  const input = document.getElementById('search');
+  const subSlot = document.getElementById('sub-slot');
+  const count = document.getElementById('count');
+  const emptyEl = document.getElementById('empty');
+
+  // Basecoat fires CustomEvent('change', { detail: { value } }) on the .select
+  // root. We mirror the current values into these vars so the filter/sort code
+  // doesn't care whether selects are native or custom.
+  let catValue = '';
+  let subValue = '';
+  let sortValue = 'score';
+
+  function getVal(id) {
+    const h = document.querySelector('#' + id + ' input[type="hidden"]');
+    return h ? h.value : '';
+  }
+  const cards = [...grid.querySelectorAll('a.card-tile')];
+  const total = cards.length;
+  const hidden = new Uint8Array(total); // parallel visibility state; avoids reading c.style on every keystroke
+  const norm = s => s.toLowerCase().normalize('NFD').replace(/\\p{Diacritic}/gu, '');
+
+  let sortFrame, filterFrame;
+
+  // attr: dataset key. dir: 1=ascending, -1=descending. kind: 'num' or 'str'.
+  // missing IDs (no value) get pushed to the end via Infinity / -Infinity.
+  const SORTS = {
+    score:    { attr: 'score',    dir: -1, kind: 'num' },
+    ppe:      { attr: 'ppe',      dir: -1, kind: 'num' },
+    ppk:      { attr: 'ppk',      dir: -1, kind: 'num' },
+    protein:  { attr: 'protein',  dir: -1, kind: 'num' },
+    cheapest: { attr: 'price',    dir:  1, kind: 'num' },
+    bestkg:   { attr: 'pricekg',  dir:  1, kind: 'num' },
+    lowcal:   { attr: 'cal',      dir:  1, kind: 'num' },
+    alpha:    { attr: 'sortname', dir:  1, kind: 'str' },
+  };
+
+  function applySort() {
+    cancelAnimationFrame(sortFrame);
+    sortFrame = requestAnimationFrame(() => {
+      const cfg = SORTS[sortValue] || SORTS.score;
+      const { attr, dir, kind } = cfg;
+      const sentinel = dir > 0 ? Infinity : -Infinity;
+      cards.sort((a, b) => {
+        const ra = a.dataset[attr];
+        const rb = b.dataset[attr];
+        if (kind === 'str') return dir * (ra || '').localeCompare(rb || '');
+        const va = ra === '' || ra == null ? sentinel : parseFloat(ra);
+        const vb = rb === '' || rb == null ? sentinel : parseFloat(rb);
+        if (isNaN(va) && isNaN(vb)) return 0;
+        if (isNaN(va)) return 1;
+        if (isNaN(vb)) return -1;
+        return dir * (va - vb);
+      });
+      const frag = document.createDocumentFragment();
+      for (const c of cards) frag.appendChild(c);
+      grid.appendChild(frag);
+      updateRanks();
+    });
+  }
+
+  function applyFilter() {
+    cancelAnimationFrame(filterFrame);
+    filterFrame = requestAnimationFrame(() => {
+      const q = norm(input.value.trim());
+      const terms = q ? q.split(/\\s+/) : [];
+      const cat = catValue;
+      const sub = subValue;
+      let shown = 0;
+      for (let i = 0; i < cards.length; i++) {
+        const c = cards[i];
+        const catMatch = !cat || c.dataset.cat === cat;
+        const subMatch = !sub || c.dataset.sub === sub;
+        const nameMatch = !terms.length || terms.every(t => c.dataset.name.includes(t));
+        const match = catMatch && subMatch && nameMatch;
+        if (match) {
+          shown++;
+          if (hidden[i]) { c.style.display = ''; hidden[i] = 0; }
+        } else {
+          if (!hidden[i]) { c.style.display = 'none'; hidden[i] = 1; }
+        }
+      }
+      const active = q || cat || sub;
+      count.textContent = active ? \`\${shown.toLocaleString()} of \${total.toLocaleString()} products\` : '';
+      emptyEl.classList.toggle('hidden', !(active && shown === 0));
+      grid.classList.toggle('hidden', active && shown === 0);
+      updateRanks();
+    });
+  }
+
+  function updateRanks() {
+    let n = 0;
+    for (let i = 0; i < cards.length; i++) {
+      if (hidden[i]) continue;
+      n++;
+      cards[i].querySelector('.rank').textContent = '#' + n;
+    }
+  }
+
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  const CHEVRON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground opacity-50 shrink-0"><path d="m6 9 6 6 6-6"/></svg>';
+
+  function buildSubSelect(cat) {
+    const subs = (cat && SUBS[cat]) || null;
+    const disabled = !subs || !subs.length;
+    const options = subs ? [['', 'All subcategories', null], ...subs.map(([n, c]) => [n, n, c])] : [['', 'All subcategories', null]];
+    const optHtml = options.map(([v, label, n], i) =>
+      '<div id="sub-opt-' + i + '" role="option" data-value="' + esc(v) + '">' + esc(label + (n != null ? ' (' + n.toLocaleString() + ')' : '')) + '</div>'
+    ).join('');
+    return (
+      '<div id="sub" class="select">' +
+      '<button type="button" class="btn-outline w-full sm:w-[12rem]" id="sub-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="sub-listbox"' + (disabled ? ' disabled="disabled"' : '') + '>' +
+      '<span class="truncate text-muted-foreground">All subcategories</span>' + CHEVRON + '</button>' +
+      '<div id="sub-popover" data-popover aria-hidden="true">' +
+      '<div role="listbox" id="sub-listbox" aria-orientation="vertical" aria-labelledby="sub-trigger" class="max-h-[60vh] overflow-y-auto">' +
+      optHtml +
+      '</div></div>' +
+      '<input type="hidden" name="sub-value" value="" />' +
+      '</div>'
+    );
+  }
+
+  function rebuildSub(cat) {
+    // Outer-replace so basecoat's MutationObserver sees a fresh .select and
+    // re-initialises its popover/listbox handlers for the new options.
+    subSlot.innerHTML = buildSubSelect(cat);
+    attachSelectListener('sub', v => { subValue = v; applyFilter(); });
+    subValue = '';
+  }
+
+  function attachSelectListener(id, onChange) {
+    const root = document.getElementById(id);
+    if (!root) return;
+    root.addEventListener('change', (e) => {
+      const v = e?.detail?.value ?? getVal(id);
+      onChange(Array.isArray(v) ? (v[0] || '') : (v || ''));
+    });
+  }
+
+  input.addEventListener('input', applyFilter);
+  attachSelectListener('cat', v => { catValue = v; rebuildSub(catValue); applyFilter(); });
+  attachSelectListener('sub', v => { subValue = v; applyFilter(); });
+  attachSelectListener('sort', v => { sortValue = v || 'score'; applySort(); });
+
+  updateRanks(); // DOM is emitted in the default (NutriScore) sort
+
+  // Pre-warm basecoat's popover machinery: the first open does lazy init
+  // (measuring trigger rect, focus trap setup) that costs ~130ms. Triggering
+  // a hidden open/close after init absorbs that cost before the user clicks.
+  async function prewarmSelects() {
+    for (const id of ['cat', 'sort']) {
+      const pop = document.getElementById(id + '-popover');
+      const trig = document.querySelector('#' + id + '-trigger');
+      if (!pop || !trig || trig.disabled) continue;
+      const prevVis = pop.style.visibility;
+      try {
+        pop.style.visibility = 'hidden';
+        trig.click();
+        await new Promise(r => requestAnimationFrame(r));
+        // Basecoat closes on an outside click dispatched to document.
+        document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        document.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        await new Promise(r => requestAnimationFrame(r));
+      } finally {
+        pop.style.visibility = prevVis;
+        pop.setAttribute('aria-hidden', 'true');
+        trig.setAttribute('aria-expanded', 'false');
+      }
+    }
+  }
+  // window 'load' fires after all deferred scripts (including basecoat) have run.
+  window.addEventListener('load', () => setTimeout(prewarmSelects, 0), { once: true });
+</script>
+</body>
+</html>`;
+
+await writeFile(HTML, page);
+console.log(`wrote ${HTML} (${cards.length} cards)`);

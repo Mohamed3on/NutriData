@@ -5,14 +5,19 @@
 #     "aiohttp>=3.9",
 # ]
 # ///
-"""Harvest every food product from Mercadona's catalog with its back-of-pack
-image URL (perspective=9), EAN, name, and category path.
+"""Harvest every food product from Mercadona's catalog.
+
+Per product we capture:
+  - English display_name (lang=en)
+  - EAN, category path
+  - image_url: back-of-pack nutrition photo (perspective=9) for the OCR pipeline
+  - image_primary: front-of-pack marketing photo (lowest non-9 perspective)
+  - price, price_per_kg, unit_size, reference_format, size_format
 
 Two phases:
 1. Walk the food category tree (fast, ~100 small calls).
-2. Fetch per-product detail concurrently to pull the perspective=9 photo
-   (~8k calls; this is the bottleneck — async with a concurrency cap keeps
-   wall time in single-digit minutes).
+2. Fetch per-product detail concurrently (~8k calls; this is the bottleneck,
+   async with a concurrency cap keeps wall time in single-digit minutes).
 
 Output is streamed JSONL (one product per line) so a Ctrl-C leaves a
 resumable file. Re-running with the same --out skips IDs already present.
@@ -144,6 +149,22 @@ async def collect_products(session: aiohttp.ClientSession) -> dict[str, dict]:
     return products
 
 
+def _pick_zoom(photo: Optional[dict]) -> Optional[str]:
+    if not photo:
+        return None
+    return photo.get("zoom") or photo.get("regular")
+
+
+def _pick_primary(photos: list[dict]) -> Optional[str]:
+    """Front-of-pack marketing shot: lowest perspective that isn't 9 (nutrition
+    label). Most SKUs have perspective=2; fall back to the first available."""
+    non_nutrition = sorted(
+        (p for p in photos if p.get("perspective") != 9),
+        key=lambda p: p.get("perspective") or 99,
+    )
+    return _pick_zoom(non_nutrition[0] if non_nutrition else (photos[0] if photos else None))
+
+
 async def fetch_detail(
     session: aiohttp.ClientSession,
     sem: asyncio.Semaphore,
@@ -152,21 +173,26 @@ async def fetch_detail(
 ) -> dict:
     async with sem:
         try:
-            d = await http_json(session, f"{API}/products/{pid}/", retries=DETAIL_RETRIES)
+            d = await http_json(session, f"{API}/products/{pid}/?lang=en", retries=DETAIL_RETRIES)
         except Exception as e:
             return {"product_id": pid, "error": f"detail fetch: {e}", **meta}
         if not d:
             return {"product_id": pid, "error": "product not found", **meta}
-        img_url: Optional[str] = None
-        for photo in d.get("photos", []) or []:
-            if photo.get("perspective") == 9:
-                img_url = photo.get("zoom") or photo.get("regular")
-                break
+        photos = d.get("photos", []) or []
+        img_nutrition = _pick_zoom(next((p for p in photos if p.get("perspective") == 9), None))
+        img_primary = _pick_primary(photos)
+        pi = d.get("price_instructions") or {}
         return {
             "product_id": pid,
             "ean": d.get("ean"),
             "name": (d.get("display_name") or meta.get("name") or "")[:120],
-            "image_url": img_url,
+            "image_url": img_nutrition,  # back-of-pack, used by OCR pipeline
+            "image_primary": img_primary,  # front-of-pack marketing shot
+            "price": pi.get("unit_price"),
+            "price_per_kg": pi.get("reference_price"),
+            "unit_size": pi.get("unit_size"),
+            "reference_format": pi.get("reference_format"),
+            "size_format": pi.get("size_format"),
             "category_path": meta.get("category_path"),
         }
 
