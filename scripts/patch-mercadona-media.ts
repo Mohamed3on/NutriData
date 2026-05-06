@@ -18,7 +18,7 @@
 import { appendFile, open, readFile, writeFile, access } from 'node:fs/promises';
 
 const SOURCE_HTML = '/Users/mohamed/personal/extensions/NutriData/mercadona-nutriscore.html';
-const HTML = '/Users/mohamed/personal/extensions/mercadona-protein-site/index.html';
+const HTML = '/Users/mohamed/personal/extensions/mercadona-protein-site/public/index.html';
 const NUTRIENTS_BUNDLE = '/Users/mohamed/personal/extensions/NutriData/public/mercadona-nutrients.json';
 const JSONL = '/Users/mohamed/personal/extensions/NutriData/data/mercadona-media.jsonl';
 const API = 'https://tienda.mercadona.es/api';
@@ -212,8 +212,9 @@ if (pending.length > 0) {
 // --- build cards ---
 type Card = {
   api: ApiRow;
-  protein: number; carbs: number | null; fat: number | null; calories: number;
-  fiber: number | null; satFat: number | null;
+  protein: number; carbs: number | null; sugar: number | null;
+  fat: number | null; calories: number;
+  fiber: number | null; salt: number | null; satFat: number | null;
   nutriScore: number | null;
   proteinPerEuro: number | null;
   proteinPer100Kcal: number;
@@ -225,7 +226,7 @@ for (const id of ids) {
   const ocr = nutrientsBundle[id];
   if (!api || api.gone) { skippedNoApi++; continue; }
   if (!ocr) { skippedNoNutr++; continue; }
-  const [protein, carbs, _sugar, fat, calories, fiber, _salt, satFat] = ocr;
+  const [protein, carbs, sugar, fat, calories, fiber, salt, satFat] = ocr;
   if (protein == null || calories == null || calories <= 0) continue;
   const ppc100 = protein / (calories / 100);
   let ppc: number | null = null;
@@ -241,7 +242,7 @@ for (const id of ids) {
     nutriScore = Math.pow(ppc100, 0.65) * Math.pow(ppc, 0.35) * fiberBonus * satFatPenalty;
   }
   cards.push({
-    api, protein, carbs, fat, calories, fiber, satFat,
+    api, protein, carbs, sugar, fat, calories, fiber, salt, satFat,
     nutriScore, proteinPerEuro: ppc, proteinPer100Kcal: ppc100,
   });
 }
@@ -285,10 +286,6 @@ for (const c of cards) {
     }
   }
 }
-const categoryOptions = [...categoryCounts.entries()]
-  .sort((a, b) => a[0].localeCompare(b[0]))
-  .map(([name, n]) => `<option value="${esc(name)}">${esc(name)} (${n})</option>`)
-  .join('');
 const subsByCategoryJson = JSON.stringify(
   Object.fromEntries(
     [...subsByCategory.entries()].map(([cat, m]) => [
@@ -378,39 +375,63 @@ const sortSelectHtml = renderBcSelect({
   initialValue: 'score', triggerClass: 'w-full sm:w-[15rem]',
 });
 
-const cardHtml = cards.map((c) => {
-  const nameEn = c.api.name_en || c.api.name_es || '';
-  const nameEs = c.api.name_es && c.api.name_en && c.api.name_es !== c.api.name_en ? c.api.name_es : '';
-  const img = c.api.image_primary ? resize(c.api.image_primary) : '';
-  const subcategory = c.api.subcategory && c.api.subcategory !== c.api.category ? c.api.subcategory : '';
-  const searchText = (nameEn + ' ' + nameEs + ' ' + (c.api.category || '') + ' ' + subcategory).toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-  const priceStr = c.api.price != null ? `€${c.api.price.toFixed(2)}` : '';
-  const refStr = c.api.price_per_kg != null
-    ? `€${c.api.price_per_kg.toFixed(2)}/${c.api.reference_format || 'kg'}`
-    : '';
-  const category = c.api.category || '';
-  const breadcrumb = subcategory ? `${category} › ${subcategory}` : category;
-  const sortName = (nameEn || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-  const nsC = lerpColor(c.nutriScore, 10, 3);
-  const ppeC = lerpColor(c.proteinPerEuro, 12, 4);
-  const ppkC = lerpColor(c.proteinPer100Kcal, 10, 3);
-  const dataAttrs = `data-name="${esc(searchText)}" data-sortname="${esc(sortName)}" data-cat="${esc(category)}" data-sub="${esc(subcategory)}" data-score="${c.nutriScore ?? ''}" data-ppe="${c.proteinPerEuro ?? ''}" data-ppk="${c.proteinPer100Kcal}" data-protein="${c.protein}" data-cal="${c.calories}" data-price="${c.api.price ?? ''}" data-pricekg="${c.api.price_per_kg ?? ''}"`;
-  const body = [
-    `<h3>${esc(nameEn)}</h3>`,
-    nameEs ? `<p class="es">${esc(nameEs)}</p>` : '',
-    breadcrumb ? `<p class="crumb">${esc(breadcrumb)}</p>` : '',
-    `<div class="metrics"><div><b style="color:${ppeC}">${fmt1(c.proteinPerEuro)}</b><u>g/€</u></div><div><b style="color:${ppkC}">${fmt1(c.proteinPer100Kcal)}</b><u>g/100kcal</u></div></div>`,
-    `<div class="foot"><div class="l"><b>${c.protein.toFixed(1)}g protein</b><span class="tiny">${Math.round(c.calories)} kcal</span></div><div class="r">${priceStr ? `<span class="price">${priceStr}</span>` : ''}${refStr ? `<span class="tiny">${esc(refStr)}</span>` : ''}</div></div>`,
-  ].filter(Boolean).join('');
-  return `<a href="https://tienda.mercadona.es/product/${c.api.product_id}/" target="_blank" rel="noopener" class="card-tile" ${dataAttrs}><div class="imgwrap"><img src="${esc(img)}" alt="" loading="lazy"><span class="rank"></span><span class="score" style="background:${nsC}">${fmt1(c.nutriScore)}</span></div><div class="body">${body}</div></a>`;
-}).join('');
+const round = (n: number | null | undefined, digits = 1): number | undefined =>
+  n == null || !isFinite(n) ? undefined : +n.toFixed(digits);
+
+const clientCardsJson = JSON.stringify(
+  cards.map((c) => {
+    const name = c.api.name_en || c.api.name_es || '';
+    const nameEs = c.api.name_es && c.api.name_en && c.api.name_es !== c.api.name_en ? c.api.name_es : '';
+    const category = c.api.category || '';
+    const subcategory = c.api.subcategory && c.api.subcategory !== c.api.category ? c.api.subcategory : '';
+    const price = round(c.api.price, 2);
+    const pricePerKg = round(c.api.price_per_kg, 2);
+    const carbs = round(c.carbs, 1);
+    const sugar = round(c.sugar, 1);
+    const fat = round(c.fat, 1);
+    const satFat = round(c.satFat, 1);
+    const fiber = round(c.fiber, 1);
+    const salt = round(c.salt, 1);
+    const searchText = (name + ' ' + nameEs + ' ' + category + ' ' + subcategory)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '');
+    const sortName = name.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+    const ns = round(c.nutriScore, 3);
+    const pe = round(c.proteinPerEuro, 3);
+    return {
+      id: c.api.product_id,
+      n: name,
+      ...(nameEs ? { es: nameEs } : {}),
+      ...(c.api.image_primary ? { img: resize(c.api.image_primary) } : {}),
+      ...(category ? { cat: category } : {}),
+      ...(subcategory ? { sub: subcategory } : {}),
+      q: searchText,
+      sn: sortName,
+      ...(ns !== undefined ? { ns } : {}),
+      ...(pe !== undefined ? { pe } : {}),
+      pk: round(c.proteinPer100Kcal, 3) || 0,
+      p: round(c.protein, 1) || 0,
+      cal: round(c.calories, 1) || 0,
+      ...(price !== undefined ? { pr: price } : {}),
+      ...(pricePerKg !== undefined ? { kg: pricePerKg } : {}),
+      ...(c.api.reference_format ? { rf: c.api.reference_format } : {}),
+      ...(carbs !== undefined ? { cb: carbs } : {}),
+      ...(sugar !== undefined ? { su: sugar } : {}),
+      ...(fat !== undefined ? { ft: fat } : {}),
+      ...(satFat !== undefined ? { sf: satFat } : {}),
+      ...(fiber !== undefined ? { fi: fiber } : {}),
+      ...(salt !== undefined ? { sa: salt } : {}),
+    };
+  })
+).replace(/</g, '\\u003c');
 
 const page = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mercadona — NutriScore Ranked</title>
+<title>NutriData: independent nutrition index for Mercadona products</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   // Map the shadcn-style theme tokens that basecoat-css ships (--background,
@@ -450,9 +471,8 @@ const page = `<!DOCTYPE html>
   input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
   [data-popover] { transition: none !important; animation: none !important; }
 
-  /* Card component styles extracted from Tailwind utilities. Per-card HTML
-     was ~1.5 KB of repeated class strings × 2,376 cards ≈ 3.5 MB of markup.
-     Single ruleset here saves ~60% of the HTML weight. */
+  /* Cards are rendered client-side from compact JSON. Keep the card styles in
+     a shared ruleset so the HTML stays small when users load more results. */
   .card-tile {
     display: flex; flex-direction: column; overflow: hidden;
     border-radius: 0.75rem;
@@ -462,10 +482,8 @@ const page = `<!DOCTYPE html>
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     transition: box-shadow 150ms, border-color 150ms, transform 150ms;
     text-decoration: none;
-    /* content-visibility: auto skips style/layout/paint for cards not near
-       the viewport. With 2k+ cards that's ~90% of the DOM. contain-intrinsic-
-       size keeps the scroll height + grid shape stable. */
-    content-visibility: auto; contain-intrinsic-size: auto 380px;
+    /* content-visibility still helps once users load larger result batches. */
+    content-visibility: auto; contain-intrinsic-size: auto 460px;
   }
   .card-tile:hover {
     border-color: var(--ring);
@@ -513,12 +531,33 @@ const page = `<!DOCTYPE html>
     color: var(--muted-foreground);
     -webkit-line-clamp: 1;
   }
+  /* Override the shared -webkit-box rule above: flex gives each span its own
+     bbox so clicks land cleanly on cat vs sub instead of overlapping in the
+     vertical box. line-height + max-height clamps to ~2 lines. */
   .card-tile .crumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 0.25rem;
     font-size: 10px; font-weight: 500; letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--muted-foreground);
-    -webkit-line-clamp: 1;
+    line-height: 1.3;
+    max-height: calc(1.3em * 3);
   }
+  .card-tile .crumb-link {
+    cursor: pointer;
+    border-radius: 2px;
+    transition: color 120ms;
+  }
+  .card-tile .crumb-link:hover,
+  .card-tile .crumb-link:focus-visible {
+    color: var(--foreground);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    outline: none;
+  }
+  .card-tile .crumb-sep { opacity: 0.6; }
   .card-tile .metrics {
     margin-top: 0.375rem;
     display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.5rem;
@@ -542,16 +581,28 @@ const page = `<!DOCTYPE html>
     font-weight: 600; color: var(--foreground);
     font-variant-numeric: tabular-nums;
   }
+  .card-tile .nutri {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border);
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0.125rem 0.5rem;
+    font-size: 11px; color: var(--muted-foreground);
+    font-variant-numeric: tabular-nums;
+  }
+  .card-tile .nutri div { display: flex; justify-content: space-between; gap: 0.25rem; }
+  .card-tile .nutri b { font-weight: 600; color: var(--foreground); }
 </style>
 </head>
 <body class="min-h-screen bg-background text-foreground antialiased">
 <div class="mx-auto max-w-[1400px] px-4 py-6 sm:py-10">
   <header class="mb-5 sm:mb-7">
     <div class="flex flex-wrap items-baseline gap-3">
-      <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Mercadona Protein Index</h1>
+      <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">NutriData index for Mercadona products</h1>
       <span class="text-sm tabular-nums text-muted-foreground">${cards.length.toLocaleString()} products</span>
     </div>
-    <p class="mt-1.5 max-w-3xl text-sm text-muted-foreground">Ranked by <span class="font-medium text-foreground">NutriScore</span> — a geometric mean of protein-per-100-kcal and protein-per-€, lifted by fiber and dragged down by saturated fat.</p>
+    <p class="mt-1.5 max-w-3xl text-sm text-muted-foreground">Independent project by <span class="font-medium text-foreground">NutriData</span> using product information from Mercadona's online store. <span class="font-medium text-foreground">Not affiliated with or endorsed by Mercadona.</span></p>
+    <p class="mt-2 max-w-3xl text-sm text-muted-foreground">Ranked by <span class="font-medium text-foreground">NutriScore</span> — a geometric mean of protein-per-100-kcal and protein-per-€, lifted by fiber and dragged down by saturated fat.</p>
   </header>
 
   <div class="form sticky top-0 z-20 -mx-4 mb-4 border-b border-border bg-background px-4 py-3">
@@ -566,7 +617,7 @@ const page = `<!DOCTYPE html>
         ${sortSelectHtml}
       </div>
     </div>
-    <p id="count" class="mt-2 min-h-[1em] text-xs tabular-nums text-muted-foreground"></p>
+    <p id="count" class="mt-2 min-h-[1em] text-xs tabular-nums text-muted-foreground">Loading products…</p>
   </div>
 
   <div id="empty" class="hidden py-16 text-center">
@@ -574,20 +625,28 @@ const page = `<!DOCTYPE html>
   </div>
 
   <div id="grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-${cardHtml}
+  </div>
+
+  <div id="more-wrap" class="mt-6 hidden justify-center">
+    <button id="show-more" type="button" class="btn-outline">Show more</button>
   </div>
 
   <footer class="mt-12 border-t border-border pt-6 text-xs text-muted-foreground">
-    Data harvested from <a href="https://tienda.mercadona.es/" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">tienda.mercadona.es</a>. Nutrient data extracted via OCR by the <a href="https://github.com/mohamed3on/NutriData" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">NutriData</a> extension.
+    Product links open on <a href="https://tienda.mercadona.es/" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">Mercadona's official online store</a>. Product data and images are referenced from Mercadona product pages for identification. <a href="https://github.com/mohamed3on/NutriData" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">NutriData</a> is independent and not affiliated with or endorsed by Mercadona.
   </footer>
 </div>
+<script id="card-data" type="application/json">${clientCardsJson}</script>
 <script>
+  const PAGE_SIZE = 60;
   const SUBS = ${subsByCategoryJson};
+  const DATA = JSON.parse(document.getElementById('card-data')?.textContent || '[]');
   const grid = document.getElementById('grid');
   const input = document.getElementById('search');
   const subSlot = document.getElementById('sub-slot');
   const count = document.getElementById('count');
   const emptyEl = document.getElementById('empty');
+  const moreWrap = document.getElementById('more-wrap');
+  const showMoreButton = document.getElementById('show-more');
 
   // Basecoat fires CustomEvent('change', { detail: { value } }) on the .select
   // root. We mirror the current values into these vars so the filter/sort code
@@ -595,91 +654,176 @@ ${cardHtml}
   let catValue = '';
   let subValue = '';
   let sortValue = 'score';
+  let renderLimit = PAGE_SIZE;
+  let matched = [];
+  let refreshFrame = 0;
+  let inputTimer = 0;
 
   function getVal(id) {
     const h = document.querySelector('#' + id + ' input[type="hidden"]');
     return h ? h.value : '';
   }
-  const cards = [...grid.querySelectorAll('a.card-tile')];
-  const total = cards.length;
-  const hidden = new Uint8Array(total); // parallel visibility state; avoids reading c.style on every keystroke
   const norm = s => s.toLowerCase().normalize('NFD').replace(/\\p{Diacritic}/gu, '');
-
-  let sortFrame, filterFrame;
+  const productUrl = id => 'https://tienda.mercadona.es/product/' + id + '/';
 
   // attr: dataset key. dir: 1=ascending, -1=descending. kind: 'num' or 'str'.
   // missing IDs (no value) get pushed to the end via Infinity / -Infinity.
   const SORTS = {
-    score:    { attr: 'score',    dir: -1, kind: 'num' },
-    ppe:      { attr: 'ppe',      dir: -1, kind: 'num' },
-    ppk:      { attr: 'ppk',      dir: -1, kind: 'num' },
-    protein:  { attr: 'protein',  dir: -1, kind: 'num' },
-    cheapest: { attr: 'price',    dir:  1, kind: 'num' },
-    bestkg:   { attr: 'pricekg',  dir:  1, kind: 'num' },
-    lowcal:   { attr: 'cal',      dir:  1, kind: 'num' },
-    alpha:    { attr: 'sortname', dir:  1, kind: 'str' },
+    score:    { key: 'ns', dir: -1, kind: 'num' },
+    ppe:      { key: 'pe', dir: -1, kind: 'num' },
+    ppk:      { key: 'pk', dir: -1, kind: 'num' },
+    protein:  { key: 'p', dir: -1, kind: 'num' },
+    cheapest: { key: 'pr', dir:  1, kind: 'num' },
+    bestkg:   { key: 'kg', dir:  1, kind: 'num' },
+    lowcal:   { key: 'cal', dir:  1, kind: 'num' },
+    alpha:    { key: 'sn', dir:  1, kind: 'str' },
   };
 
-  function applySort() {
-    cancelAnimationFrame(sortFrame);
-    sortFrame = requestAnimationFrame(() => {
-      const cfg = SORTS[sortValue] || SORTS.score;
-      const { attr, dir, kind } = cfg;
-      const sentinel = dir > 0 ? Infinity : -Infinity;
-      cards.sort((a, b) => {
-        const ra = a.dataset[attr];
-        const rb = b.dataset[attr];
-        if (kind === 'str') return dir * (ra || '').localeCompare(rb || '');
-        const va = ra === '' || ra == null ? sentinel : parseFloat(ra);
-        const vb = rb === '' || rb == null ? sentinel : parseFloat(rb);
-        if (isNaN(va) && isNaN(vb)) return 0;
-        if (isNaN(va)) return 1;
-        if (isNaN(vb)) return -1;
-        return dir * (va - vb);
-      });
-      const frag = document.createDocumentFragment();
-      for (const c of cards) frag.appendChild(c);
-      grid.appendChild(frag);
-      updateRanks();
-    });
+  function lerpColor(v, good, bad) {
+    if (v == null || !isFinite(v)) return '#9ca3af';
+    const red = [220, 38, 38], yellow = [202, 138, 4], green = [22, 163, 74];
+    if (v <= bad) return 'rgb(' + red.join(',') + ')';
+    if (v >= good) return 'rgb(' + green.join(',') + ')';
+    const mid = (good + bad) / 2;
+    const lo = v < mid ? red : yellow;
+    const hi = v < mid ? yellow : green;
+    const factor = v < mid ? (v - bad) / (mid - bad) : (v - mid) / (good - mid);
+    const color = lo.map((ch, i) => Math.round(ch + factor * (hi[i] - ch)));
+    return 'rgb(' + color.join(',') + ')';
   }
 
-  function applyFilter() {
-    cancelAnimationFrame(filterFrame);
-    filterFrame = requestAnimationFrame(() => {
-      const q = norm(input.value.trim());
-      const terms = q ? q.split(/\\s+/) : [];
-      const cat = catValue;
-      const sub = subValue;
-      let shown = 0;
-      for (let i = 0; i < cards.length; i++) {
-        const c = cards[i];
-        const catMatch = !cat || c.dataset.cat === cat;
-        const subMatch = !sub || c.dataset.sub === sub;
-        const nameMatch = !terms.length || terms.every(t => c.dataset.name.includes(t));
-        const match = catMatch && subMatch && nameMatch;
-        if (match) {
-          shown++;
-          if (hidden[i]) { c.style.display = ''; hidden[i] = 0; }
-        } else {
-          if (!hidden[i]) { c.style.display = 'none'; hidden[i] = 1; }
-        }
-      }
-      const active = q || cat || sub;
-      count.textContent = active ? \`\${shown.toLocaleString()} of \${total.toLocaleString()} products\` : '';
-      emptyEl.classList.toggle('hidden', !(active && shown === 0));
-      grid.classList.toggle('hidden', active && shown === 0);
-      updateRanks();
-    });
+  function fmt1(n) {
+    return n == null || !isFinite(n) ? '–' : n.toFixed(1);
   }
 
-  function updateRanks() {
-    let n = 0;
-    for (let i = 0; i < cards.length; i++) {
-      if (hidden[i]) continue;
-      n++;
-      cards[i].querySelector('.rank').textContent = '#' + n;
+  function formatPrice(n) {
+    return n == null || !isFinite(n) ? '' : '€' + n.toFixed(2);
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function nutriRow(label, val, unit = 'g', digits = 1) {
+    if (val == null || !isFinite(val)) return '';
+    return '<div><span>' + label + '</span><b>' + Number(val).toFixed(digits) + unit + '</b></div>';
+  }
+
+  function renderCrumb(cat, sub) {
+    if (!cat) return '';
+    const parts = ['<span class="crumb-link" data-crumb-cat="' + escHtml(cat) + '" role="button" tabindex="0">' + escHtml(cat) + '</span>'];
+    if (sub && sub !== cat) {
+      parts.push('<span class="crumb-sep" aria-hidden="true">›</span>');
+      parts.push('<span class="crumb-link" data-crumb-cat="' + escHtml(cat) + '" data-crumb-sub="' + escHtml(sub) + '" role="button" tabindex="0">' + escHtml(sub) + '</span>');
     }
+    return '<p class="crumb">' + parts.join('') + '</p>';
+  }
+
+  function renderCard(item, rank) {
+    const priceStr = formatPrice(item.pr);
+    const refStr = item.kg != null && isFinite(item.kg)
+      ? '€' + Number(item.kg).toFixed(2) + '/' + (item.rf || 'kg')
+      : '';
+    const nutriBlock = [
+      nutriRow('Carbs', item.cb),
+      nutriRow('Sugar', item.su),
+      nutriRow('Fat', item.ft),
+      nutriRow('Sat fat', item.sf),
+      nutriRow('Fiber', item.fi),
+      nutriRow('Salt', item.sa),
+    ].filter(Boolean).join('');
+    const body = [
+      '<h3>' + escHtml(item.n) + '</h3>',
+      item.es ? '<p class="es">' + escHtml(item.es) + '</p>' : '',
+      renderCrumb(item.cat, item.sub),
+      '<div class="metrics"><div><b style="color:' + lerpColor(item.pe, 12, 4) + '">' + fmt1(item.pe) + '</b><u>g/€</u></div><div><b style="color:' + lerpColor(item.pk, 10, 3) + '">' + fmt1(item.pk) + '</b><u>g/100kcal</u></div></div>',
+      '<div class="foot"><div class="l"><b>' + Number(item.p).toFixed(1) + 'g protein</b><span class="tiny">' + Math.round(item.cal) + ' kcal</span></div><div class="r">' + (priceStr ? '<span class="price">' + priceStr + '</span>' : '') + (refStr ? '<span class="tiny">' + escHtml(refStr) + '</span>' : '') + '</div></div>',
+      nutriBlock ? '<div class="nutri">' + nutriBlock + '</div>' : '',
+    ].filter(Boolean).join('');
+    return '<a href="' + productUrl(item.id) + '" target="_blank" rel="noopener" class="card-tile"><div class="imgwrap">' + (item.img ? '<img src="' + escHtml(item.img) + '" alt="" loading="lazy" decoding="async">' : '') + '<span class="rank">#' + rank + '</span><span class="score" style="background:' + lerpColor(item.ns, 10, 3) + '">' + fmt1(item.ns) + '</span></div><div class="body">' + body + '</div></a>';
+  }
+
+  function renderGrid() {
+    const totalMatches = matched.length;
+    const visibleCount = Math.min(renderLimit, totalMatches);
+
+    if (totalMatches === 0) {
+      grid.innerHTML = '';
+      grid.classList.add('hidden');
+      emptyEl.classList.remove('hidden');
+      moreWrap.classList.add('hidden');
+      count.textContent = '0 matching products';
+      return;
+    }
+
+    const html = [];
+    for (let i = 0; i < visibleCount; i++) html.push(renderCard(matched[i], i + 1));
+    grid.innerHTML = html.join('');
+    grid.classList.remove('hidden');
+    emptyEl.classList.add('hidden');
+
+    const remaining = totalMatches - visibleCount;
+    moreWrap.classList.toggle('hidden', remaining <= 0);
+    if (remaining > 0) {
+      showMoreButton.textContent = 'Show ' + Math.min(PAGE_SIZE, remaining).toLocaleString() + ' more';
+    }
+
+    const active = input.value.trim() || catValue || subValue;
+    if (active) {
+      count.textContent = remaining > 0
+        ? 'Showing ' + visibleCount.toLocaleString() + ' of ' + totalMatches.toLocaleString() + ' matching products'
+        : totalMatches.toLocaleString() + ' matching products';
+    } else {
+      count.textContent = remaining > 0
+        ? 'Showing ' + visibleCount.toLocaleString() + ' of ' + DATA.length.toLocaleString() + ' products'
+        : DATA.length.toLocaleString() + ' products';
+    }
+  }
+
+  function recomputeAndRender() {
+    const q = norm(input.value.trim());
+    const terms = q ? q.split(/\\s+/).filter(Boolean) : [];
+    const cfg = SORTS[sortValue] || SORTS.score;
+    const { key, dir, kind } = cfg;
+    const sentinel = dir > 0 ? Infinity : -Infinity;
+
+    const next = [];
+    for (let i = 0; i < DATA.length; i++) {
+      const item = DATA[i];
+      if (catValue && item.cat !== catValue) continue;
+      if (subValue && item.sub !== subValue) continue;
+      if (terms.length && !terms.every(t => item.q.includes(t))) continue;
+      next.push(item);
+    }
+
+    next.sort((a, b) => {
+      if (kind === 'str') return dir * ((a[key] || '').localeCompare(b[key] || ''));
+      const va = typeof a[key] === 'number' ? a[key] : sentinel;
+      const vb = typeof b[key] === 'number' ? b[key] : sentinel;
+      if (va === vb) return 0;
+      return dir * (va - vb);
+    });
+
+    matched = next;
+    renderGrid();
+  }
+
+  function scheduleRefresh(resetLimit = false, debounceMs = 0) {
+    if (resetLimit) renderLimit = PAGE_SIZE;
+    if (inputTimer) {
+      clearTimeout(inputTimer);
+      inputTimer = 0;
+    }
+    const run = () => {
+      cancelAnimationFrame(refreshFrame);
+      refreshFrame = requestAnimationFrame(recomputeAndRender);
+    };
+    if (debounceMs > 0) inputTimer = setTimeout(run, debounceMs);
+    else run();
   }
 
   function esc(s) {
@@ -712,7 +856,7 @@ ${cardHtml}
     // Outer-replace so basecoat's MutationObserver sees a fresh .select and
     // re-initialises its popover/listbox handlers for the new options.
     subSlot.innerHTML = buildSubSelect(cat);
-    attachSelectListener('sub', v => { subValue = v; applyFilter(); });
+    attachSelectListener('sub', v => { subValue = v; scheduleRefresh(true); });
     subValue = '';
   }
 
@@ -725,12 +869,62 @@ ${cardHtml}
     });
   }
 
-  input.addEventListener('input', applyFilter);
-  attachSelectListener('cat', v => { catValue = v; rebuildSub(catValue); applyFilter(); });
-  attachSelectListener('sub', v => { subValue = v; applyFilter(); });
-  attachSelectListener('sort', v => { sortValue = v || 'score'; applySort(); });
+  input.addEventListener('input', () => scheduleRefresh(true, 90));
+  attachSelectListener('cat', v => { catValue = v; rebuildSub(catValue); scheduleRefresh(true); });
+  attachSelectListener('sub', v => { subValue = v; scheduleRefresh(true); });
+  attachSelectListener('sort', v => { sortValue = v || 'score'; scheduleRefresh(true); });
+  showMoreButton.addEventListener('click', () => {
+    renderLimit += PAGE_SIZE;
+    renderGrid();
+  });
 
-  updateRanks(); // DOM is emitted in the default (NutriScore) sort
+  // Sync a basecoat select to a chosen value without going through its option
+  // click flow — keeps the trigger label, hidden input, aria-selected, and
+  // muted-placeholder class in lockstep, then dispatches the same 'change'
+  // event the listbox would so existing handlers (rebuildSub, refresh) run.
+  function syncSelect(id, value) {
+    const root = document.getElementById(id);
+    if (!root) return;
+    const v = value || '';
+    const hidden = root.querySelector('input[type="hidden"]');
+    const trigger = root.querySelector('#' + id + '-trigger');
+    const triggerSpan = trigger?.querySelector('span');
+    const opt = v
+      ? root.querySelector('[role="option"][data-value="' + (window.CSS && CSS.escape ? CSS.escape(v) : v.replace(/"/g, '\\\\"')) + '"]')
+      : root.querySelector('[role="option"][data-value=""]');
+    if (hidden) hidden.value = v;
+    if (triggerSpan) {
+      triggerSpan.textContent = opt ? opt.textContent : v;
+      triggerSpan.classList.toggle('text-muted-foreground', !v);
+    }
+    root.querySelectorAll('[role="option"]').forEach(o => {
+      o.setAttribute('aria-selected', o.dataset.value === v ? 'true' : 'false');
+    });
+    root.dispatchEvent(new CustomEvent('change', { detail: { value: v } }));
+  }
+
+  // Crumb clicks live inside the card's <a>; preventDefault stops navigation,
+  // stopPropagation keeps middle-click / ctrl-click from opening the product.
+  grid.addEventListener('click', (e) => {
+    const link = e.target.closest('.crumb-link');
+    if (!link) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const cat = link.dataset.crumbCat || '';
+    const sub = link.dataset.crumbSub || '';
+    syncSelect('cat', cat);              // triggers rebuildSub + refresh
+    if (sub) syncSelect('sub', sub);     // sub DOM was just rebuilt synchronously
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  grid.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const link = e.target.closest('.crumb-link');
+    if (!link) return;
+    e.preventDefault();
+    link.click();
+  });
+
+  scheduleRefresh(true);
 
   // Pre-warm basecoat's popover machinery: the first open does lazy init
   // (measuring trigger rect, focus trap setup) that costs ~130ms. Triggering
