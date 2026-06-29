@@ -20,9 +20,10 @@
 // and re-running this script — the site stays identical.
 
 import { readFile, writeFile } from 'node:fs/promises';
+import { computeNutriScore } from '../src/nutriScore';
 
-const REPO = '/Users/mohamed/personal/extensions/NutriData';
-const SITE_DIR = '/Users/mohamed/personal/extensions/mercadona-protein-site/public';
+const REPO = `${import.meta.dir}/..`;
+const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site/public`;
 const MERCADONA_CARDS = `${REPO}/data/mercadona-cards.json`;
 const REWE_PRODUCTS = `${REPO}/data/rewe-products.json`;
 const DEFAULT_STORE = 'rewe';
@@ -44,7 +45,7 @@ console.log(`mercadona: ${mercadonaCards.length} cards`);
 type ReweProduct = {
   id: string; name: string; url: string; img: string; cats: string[];
   price: number | null; ppu: number | null; unit: string | null;
-  brand: string | null; sub: string | null; gtin: string | null;
+  brand: string | null; gtin: string | null;
   nutri: (number | null)[]; // [protein, carbs, sugar, fat, calories, fiber, salt, satFat]
 };
 const reweProducts: ReweProduct[] = JSON.parse(await readFile(REWE_PRODUCTS, 'utf8'));
@@ -86,12 +87,7 @@ for (const p of reweProducts) {
   const ppu = p.ppu;
   const ppc = ppu && ppu > 0 ? (protein * 10) / ppu : null;
 
-  let nutriScore: number | null = null;
-  if (ppc != null && isFinite(ppc100)) {
-    const fiberBonus = fiber && fiber > 0 ? 1 + Math.min(fiber / 8, 0.15) : 1;
-    const satFatPenalty = satFat && satFat > 0 ? 1 - Math.min(satFat / 100, 0.5) : 1;
-    nutriScore = Math.pow(ppc100, 0.65) * Math.pow(ppc, 0.35) * fiberBonus * satFatPenalty;
-  }
+  const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat) : null;
 
   // REWE categories are a 3-4 level path (dept > … > leaf). The leaf (e.g.
   // "Mozzarella", "Harzer") is the most useful filter, so map it to `sub`
@@ -104,39 +100,41 @@ for (const p of reweProducts) {
   const ns = round(nutriScore, 3);
   const pe = round(ppc, 3);
 
+  // undefined-valued keys are dropped by JSON.stringify, so a flat literal
+  // gives the same output as conditional spreads without the double round().
   reweCards.push({
-    id: p.id,
-    n: name,
-    u: p.url,
-    ...(p.img ? { img: p.img } : {}),
-    ...(cat ? { cat } : {}),
-    ...(sub ? { sub } : {}),
-    q: searchText,
-    sn: norm(name),
-    ...(ns !== undefined ? { ns } : {}),
-    ...(pe !== undefined ? { pe } : {}),
+    id: p.id, n: name, u: p.url,
+    img: p.img || undefined,
+    cat: cat || undefined,
+    sub: sub || undefined,
+    q: searchText, sn: norm(name),
+    ns, pe,
     pk: round(ppc100, 3) || 0,
     p: round(protein, 1) || 0,
     cal: round(calories, 1) || 0,
-    ...(round(p.price, 2) !== undefined ? { pr: round(p.price, 2) } : {}),
-    ...(round(ppu, 2) !== undefined ? { kg: round(ppu, 2) } : {}),
-    ...(round(carbs, 1) !== undefined ? { cb: round(carbs, 1) } : {}),
-    ...(round(sugar, 1) !== undefined ? { su: round(sugar, 1) } : {}),
-    ...(round(fat, 1) !== undefined ? { ft: round(fat, 1) } : {}),
-    ...(round(satFat, 1) !== undefined ? { sf: round(satFat, 1) } : {}),
-    ...(round(fiber, 1) !== undefined ? { fi: round(fiber, 1) } : {}),
-    ...(round(salt, 1) !== undefined ? { sa: round(salt, 1) } : {}),
+    pr: round(p.price, 2), kg: round(ppu, 2),
+    // REWE Grundpreis is €/L for liquids; detect from a volume measure in the
+    // name so the card shows €x/L instead of the €x/kg fallback.
+    rf: /\b\d+(?:[.,]\d+)?\s*(?:ml|cl|l)\b/i.test(name) ? 'L' : undefined,
+    cb: round(carbs, 1), su: round(sugar, 1), ft: round(fat, 1),
+    sf: round(satFat, 1), fi: round(fiber, 1), sa: round(salt, 1),
   });
 }
-reweCards.sort((a, b) => {
-  const va = (a.ns as number) ?? (a.pk as number);
-  const vb = (b.ns as number) ?? (b.pk as number);
-  return vb - va;
-});
+// Pre-sort both stores exactly as the client's default 'score' sort would
+// (NutriScore desc, no-score items last, tie-broken by protein-per-100kcal) so
+// the client can skip re-sorting 16k rows on every keystroke for the default.
+const byScore = (a: Card, b: Card) => {
+  const sa = typeof a.ns === 'number' ? a.ns : -Infinity;
+  const sb = typeof b.ns === 'number' ? b.ns : -Infinity;
+  if (sa !== sb) return sb - sa;
+  return (typeof b.pk === 'number' ? b.pk : -Infinity) - (typeof a.pk === 'number' ? a.pk : -Infinity);
+};
+mercadonaCards.sort(byScore);
+reweCards.sort(byScore);
 console.log(`rewe: ${reweCards.length} cards  (skipped no-nutrition=${skipNoNutr}, insane=${skipInsane}, dupes=${dupes})`);
 
-// data is escaped so a stray "</script>" in a name can't break out of context.
-const dataJson = (cards: Card[]) => JSON.stringify(cards).replace(/</g, '\\u003c');
+// External JSON files, fetched at runtime — no <script> context to escape for.
+const dataJson = (cards: Card[]) => JSON.stringify(cards);
 await writeFile(`${SITE_DIR}/mercadona.json`, dataJson(mercadonaCards));
 await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards));
 
@@ -280,8 +278,7 @@ const page = `<!DOCTYPE html>
 <div class="mx-auto max-w-[1400px] px-4 py-6 sm:py-10">
   <header class="mb-5 sm:mb-7">
     <div id="store-tabs" role="tablist" aria-label="Choose store" class="mb-3">
-      <button type="button" class="store-tab" role="tab" data-store="mercadona" aria-selected="${DEFAULT_STORE === 'mercadona'}">Mercadona</button>
-      <button type="button" class="store-tab" role="tab" data-store="rewe" aria-selected="${DEFAULT_STORE === 'rewe'}">REWE</button>
+      ${Object.entries(STORES).map(([key, s]) => `<button type="button" class="store-tab" role="tab" data-store="${key}" aria-selected="${key === DEFAULT_STORE}">${esc(s.label)}</button>`).join('\n      ')}
     </div>
     <div class="flex flex-wrap items-baseline gap-3">
       <h1 id="title" class="text-2xl font-semibold tracking-tight sm:text-3xl">${esc(def.h1)}</h1>
@@ -360,7 +357,6 @@ const page = `<!DOCTYPE html>
     return h ? h.value : '';
   }
   const norm = s => s.toLowerCase().normalize('NFD').replace(/\\p{Diacritic}/gu, '');
-  const productUrl = item => item.u;
 
   const SORTS = {
     score:    { key: 'ns', dir: -1, kind: 'num' },
@@ -391,13 +387,9 @@ const page = `<!DOCTYPE html>
   function escHtml(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-  function esc(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function nutriRow(label, val, unit = 'g', digits = 1) {
+  function nutriRow(label, val) {
     if (val == null || !isFinite(val)) return '';
-    return '<div><span>' + label + '</span><b>' + Number(val).toFixed(digits) + unit + '</b></div>';
+    return '<div><span>' + label + '</span><b>' + Number(val).toFixed(1) + 'g</b></div>';
   }
 
   function renderCrumb(cat, sub) {
@@ -437,7 +429,7 @@ const page = `<!DOCTYPE html>
       '<div class="ratios">' + ratios.join('') + '</div>',
       macros ? '<div class="macros">' + macros + '</div>' : '',
     ].filter(Boolean).join('');
-    return '<a href="' + productUrl(item) + '" target="_blank" rel="noopener" class="card-tile"><div class="imgwrap">' + (item.img ? '<img src="' + escHtml(item.img) + '" alt="" loading="lazy" decoding="async">' : '') + '<span class="rank">#' + rank + '</span><span class="score" style="background:' + lerpColor(item.ns, 10, 3) + '">' + fmt1(item.ns) + '</span></div><div class="body">' + body + '</div></a>';
+    return '<a href="' + item.u + '" target="_blank" rel="noopener" class="card-tile"><div class="imgwrap">' + (item.img ? '<img src="' + escHtml(item.img) + '" alt="" loading="lazy" decoding="async">' : '') + '<span class="rank">#' + rank + '</span><span class="score" style="background:' + lerpColor(item.ns, 10, 3) + '">' + fmt1(item.ns) + '</span></div><div class="body">' + body + '</div></a>';
   }
 
   function renderGrid() {
@@ -494,7 +486,9 @@ const page = `<!DOCTYPE html>
       next.push(item);
     }
 
-    next.sort((a, b) => {
+    // DATA is pre-sorted by NutriScore at build time, so the default 'score'
+    // view needs no re-sort on every keystroke — only the other sorts do.
+    if (sortValue !== 'score') next.sort((a, b) => {
       if (kind === 'str') return dir * ((a[key] || '').localeCompare(b[key] || ''));
       const va = typeof a[key] === 'number' ? a[key] : sentinel;
       const vb = typeof b[key] === 'number' ? b[key] : sentinel;
@@ -541,21 +535,26 @@ const page = `<!DOCTYPE html>
     allLeaves = Object.entries(leafCounts).sort((a, b) => a[0].localeCompare(b[0]));
   }
 
+  // One markup builder for both filter selects (department + category), each
+  // searchable. options: [value, label, count|null][].
+  function buildSelectHtml(id, placeholder, options) {
+    const optHtml = options.map(([v, label, n], i) =>
+      '<div id="' + id + '-opt-' + i + '" role="option" data-value="' + escHtml(v) + '">' + escHtml(label + (n != null ? ' (' + n.toLocaleString() + ')' : '')) + '</div>'
+    ).join('');
+    const searchHeader = '<header>' + SEARCH_SVG + '<input type="text" placeholder="Search…" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" role="combobox" aria-expanded="false" aria-controls="' + id + '-listbox" aria-labelledby="' + id + '-trigger" /></header>';
+    return '<div id="' + id + '" class="select">' +
+      '<button type="button" class="btn-outline w-full sm:w-[12rem]" id="' + id + '-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="' + id + '-listbox">' +
+      '<span class="truncate text-muted-foreground">' + escHtml(placeholder) + '</span>' + CHEVRON + '</button>' +
+      '<div id="' + id + '-popover" data-popover aria-hidden="true">' + searchHeader +
+      '<div role="listbox" id="' + id + '-listbox" aria-orientation="vertical" aria-labelledby="' + id + '-trigger" class="max-h-[60vh] overflow-y-auto">' + optHtml + '</div></div>' +
+      '<input type="hidden" name="' + id + '-value" value="" />' +
+      '</div>';
+  }
+
   function buildCatSelect() {
     const cats = Object.keys(catCounts).sort((a, b) => a.localeCompare(b));
     const options = [['', 'All departments', DATA.length], ...cats.map(c => [c, c, catCounts[c]])];
-    const optHtml = options.map(([v, label, n], i) =>
-      '<div id="cat-opt-' + i + '" role="option" data-value="' + esc(v) + '">' + esc(label + (n != null ? ' (' + n.toLocaleString() + ')' : '')) + '</div>'
-    ).join('');
-    const searchHeader = '<header>' + SEARCH_SVG + '<input type="text" placeholder="Search…" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" role="combobox" aria-expanded="false" aria-controls="cat-listbox" aria-labelledby="cat-trigger" /></header>';
-    catSlot.innerHTML =
-      '<div id="cat" class="select">' +
-      '<button type="button" class="btn-outline w-full sm:w-[12rem]" id="cat-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="cat-listbox">' +
-      '<span class="truncate text-muted-foreground">All departments</span>' + CHEVRON + '</button>' +
-      '<div id="cat-popover" data-popover aria-hidden="true">' + searchHeader +
-      '<div role="listbox" id="cat-listbox" aria-orientation="vertical" aria-labelledby="cat-trigger" class="max-h-[60vh] overflow-y-auto">' + optHtml + '</div></div>' +
-      '<input type="hidden" name="cat-value" value="" />' +
-      '</div>';
+    catSlot.innerHTML = buildSelectHtml('cat', 'All departments', options);
     attachSelectListener('cat', v => { catValue = v; rebuildSub(catValue); scheduleRefresh(true); });
     catValue = '';
   }
@@ -566,21 +565,7 @@ const page = `<!DOCTYPE html>
   function buildSubSelect(cat) {
     const subs = cat && SUBS[cat] ? SUBS[cat] : allLeaves;
     const options = [['', 'All categories', null], ...subs.map(([n, c]) => [n, n, c])];
-    const optHtml = options.map(([v, label, n], i) =>
-      '<div id="sub-opt-' + i + '" role="option" data-value="' + esc(v) + '">' + esc(label + (n != null ? ' (' + n.toLocaleString() + ')' : '')) + '</div>'
-    ).join('');
-    const searchHeader = '<header>' + SEARCH_SVG + '<input type="text" placeholder="Search…" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" role="combobox" aria-expanded="false" aria-controls="sub-listbox" aria-labelledby="sub-trigger" /></header>';
-    return (
-      '<div id="sub" class="select">' +
-      '<button type="button" class="btn-outline w-full sm:w-[12rem]" id="sub-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="sub-listbox">' +
-      '<span class="truncate text-muted-foreground">All categories</span>' + CHEVRON + '</button>' +
-      '<div id="sub-popover" data-popover aria-hidden="true">' + searchHeader +
-      '<div role="listbox" id="sub-listbox" aria-orientation="vertical" aria-labelledby="sub-trigger" class="max-h-[60vh] overflow-y-auto">' +
-      optHtml +
-      '</div></div>' +
-      '<input type="hidden" name="sub-value" value="" />' +
-      '</div>'
-    );
+    return buildSelectHtml('sub', 'All categories', options);
   }
 
   function rebuildSub(cat) {

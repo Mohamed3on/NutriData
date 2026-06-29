@@ -10,8 +10,9 @@
 // Runs `wrangler d1 execute` under the site dir (where the D1 binding lives).
 
 import { writeFileSync } from 'node:fs';
+import { toNutriArray } from './lib/rewe-dump';
 
-const SITE_DIR = '/Users/mohamed/personal/extensions/mercadona-protein-site';
+const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site`;
 const OUT = `${import.meta.dir}/../data/rewe-products.json`;
 
 const SQL =
@@ -22,36 +23,25 @@ const proc = Bun.spawn(
   ['wrangler', 'd1', 'execute', 'nutridata', '--remote', '--json', '--command', SQL],
   { cwd: SITE_DIR, stdout: 'pipe', stderr: 'inherit' },
 );
-const out = await new Response(proc.stdout).text();
+const stdout = await new Response(proc.stdout).text();
 if ((await proc.exited) !== 0) throw new Error('wrangler d1 execute failed');
 
 // wrangler --json prints `[{ results: [...], success, meta }]`
-const parsed = JSON.parse(out.slice(out.indexOf('[')));
+const parsed = JSON.parse(stdout.slice(stdout.indexOf('[')));
 const rows: any[] = parsed[0].results;
-
-const num = (s: string | null): number | null => {
-  if (s == null || s === '') return null;
-  const m = String(s).replace(',', '.').match(/-?\d+(?:\.\d+)?/); return m ? parseFloat(m[0]) : null;
-};
-const kcal = (s: string | null): number | null => {
-  if (s == null || s === '') return null; const v = num(s); if (v === null) return null;
-  return /kj/i.test(String(s)) && !/kcal/i.test(String(s)) ? Math.round(v / 4.184) : v;
-};
 
 let noNutri = 0;
 const products = [];
-for (const r of rows) {
+for (const row of rows) {
   let n: Record<string, string> = {};
-  if (r.nutritional_data) { try { n = JSON.parse(r.nutritional_data); } catch {} }
-  const protein = num(n.protein), calories = kcal(n.calories);
-  if (protein === null && calories === null) { noNutri++; continue; }
-  // compact order matches Mercadona: [protein, carbs, sugar, fat, calories, fiber, salt, satFat]
-  const nutri = [protein, num(n.carbs), num(n.sugar), num(n.fat), calories, num(n.fiber), num(n.salt), num(n.saturatedFat)];
+  if (row.nutritional_data) { try { n = JSON.parse(row.nutritional_data); } catch {} }
+  const nutri = toNutriArray(n); // [protein, carbs, sugar, fat, calories, fiber, salt, satFat]
+  if (nutri[0] === null && nutri[4] === null) { noNutri++; continue; } // no protein & no calories
   let cats: string[] = [];
-  if (r.categories) { try { cats = JSON.parse(r.categories); } catch {} }
+  if (row.categories) { try { cats = JSON.parse(row.categories); } catch {} }
   products.push({
-    id: r.shop_id, name: r.name || '', url: r.url || '', img: r.image_url || '',
-    cats, price: r.price, ppu: r.price_per_unit, unit: r.unit, brand: r.brand, sub: null, gtin: r.gtin, nutri,
+    id: row.shop_id, name: row.name || '', url: row.url || '', img: row.image_url || '',
+    cats, price: row.price, ppu: row.price_per_unit, unit: row.unit, brand: row.brand, gtin: row.gtin, nutri,
   });
 }
 writeFileSync(OUT, JSON.stringify(products));

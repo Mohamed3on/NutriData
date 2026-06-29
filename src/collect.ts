@@ -23,7 +23,6 @@ type SentMap = Record<string, number>;
 let sentMap: SentMap | null = null; // dedup map, loaded once per page
 const queue: CollectPayload[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | 0 = 0;
-let unloadBound = false;
 
 async function ensureLoaded(): Promise<SentMap> {
   if (!sentMap) {
@@ -31,12 +30,6 @@ async function ensureLoaded(): Promise<SentMap> {
       sentMap = ((await chrome.storage.local.get(STORE_KEY))[STORE_KEY] as SentMap) || {};
     } catch {
       sentMap = {};
-    }
-    if (!unloadBound) {
-      unloadBound = true;
-      // Flush whatever's buffered before the page goes away.
-      addEventListener('pagehide', () => flush(), { capture: true });
-      addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
     }
   }
   return sentMap;
@@ -56,13 +49,11 @@ function flush(): void {
   if (!queue.length) return;
   send(queue.splice(0, BATCH));
   if (sentMap) {
-    // Persist the (pruned) dedup map once per flush, not once per product.
+    // Drop expired entries (cheap); only sort + cap when actually over the limit.
     const now = Date.now();
-    const fresh = Object.entries(sentMap)
-      .filter(([, ts]) => now - ts < TTL_MS)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, MAX_KEYS);
-    sentMap = Object.fromEntries(fresh);
+    let entries = Object.entries(sentMap).filter(([, ts]) => now - ts < TTL_MS);
+    if (entries.length > MAX_KEYS) entries = entries.sort((a, b) => b[1] - a[1]).slice(0, MAX_KEYS);
+    sentMap = Object.fromEntries(entries);
     chrome.storage.local.set({ [STORE_KEY]: sentMap }).catch(() => {});
   }
   if (queue.length) scheduleFlush(); // >BATCH queued — send the rest next tick
@@ -71,6 +62,10 @@ function flush(): void {
 function scheduleFlush(): void {
   if (!flushTimer) flushTimer = setTimeout(flush, FLUSH_MS);
 }
+
+// Flush whatever's buffered before the page goes away.
+addEventListener('pagehide', () => flush(), { capture: true });
+addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
 
 export async function maybeCollect(shop: Shop, doc: Document, nutrientInfo: NutrientInfo): Promise<void> {
   try {

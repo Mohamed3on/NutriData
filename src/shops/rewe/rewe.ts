@@ -3,20 +3,6 @@ import { createCustomSortSelectElement } from '../../utils/createCustomSortSelec
 import { parseNumeric } from '../../utils';
 import { ProductData } from './ProductData';
 
-export const getCategories = (doc: Document): string[] => {
-  const breadcrumbs = doc.querySelector('.lr-breadcrumbs');
-  if (breadcrumbs) {
-    const breadcrumbLinks = breadcrumbs.querySelectorAll('.lr-breadcrumbs__link');
-    return Array.from(breadcrumbLinks)
-      .map((link) => {
-        // Remove the arrow characters and trim whitespace
-        return (link.textContent || '').replace(/[←→]/g, '').trim();
-      })
-      .filter(Boolean); // Remove any empty strings
-  }
-  return [];
-};
-
 const getProductData = (doc: Document): ProductData | null => {
   const propstoreElement = doc.querySelector('script[id^="pdpr-propstore"]');
   if (propstoreElement) {

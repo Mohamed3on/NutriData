@@ -1,4 +1,5 @@
 import { Metrics, NutrientInfo, PriceAndWeightInfo } from './types';
+import { computeNutriScore } from './nutriScore';
 
 export function calculateMetrics(
   nutrientInfo: NutrientInfo,
@@ -43,14 +44,7 @@ export function calculateMetrics(
       ? parseFloat(nutrientInfo.saturatedFat.replace(/[^\d.-]/g, ''))
       : 0;
 
-    // Fiber bonus caps at +15% (8g/100g → "very high fiber" threshold).
-    const fiberBonus = fiber > 0 ? 1 + Math.min(fiber / 8, 0.15) : 1;
-    // Saturated fat penalty: 1% per g/100g, floored at -50% so butter (~51g) hits the floor.
-    const satFatPenalty = satFat > 0 ? 1 - Math.min(satFat / 100, 0.5) : 1;
-
-    // Weighted geometric mean favoring protein-per-calorie over protein-per-currency.
-    const baseScore = Math.pow(ppc100, 0.65) * Math.pow(ppc, 0.35);
-    metrics.nutriScore = (baseScore * fiberBonus * satFatPenalty).toFixed(1);
+    metrics.nutriScore = computeNutriScore(ppc100, ppc, fiber, satFat).toFixed(1);
   } else {
     metrics.nutriScore = '0';
   }
