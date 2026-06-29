@@ -231,7 +231,7 @@ const page = `<!DOCTYPE html>
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     transition: box-shadow 150ms, border-color 150ms, transform 150ms;
     text-decoration: none;
-    content-visibility: auto; contain-intrinsic-size: auto 360px;
+    content-visibility: auto; contain-intrinsic-size: auto 430px;
   }
   .card-tile:hover {
     border-color: var(--ring); transform: translateY(-2px);
@@ -270,6 +270,10 @@ const page = `<!DOCTYPE html>
   /* Supporting efficiency line — quiet, divided off from the hero. */
   .card-tile .ratios { display: flex; flex-wrap: wrap; gap: 0.1rem 0.6rem; margin-top: 0.5rem; padding-top: 0.45rem; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
   .card-tile .ratios b { font-weight: 600; }
+  /* Macro breakdown: present, but the quietest tier — small, muted, no divider. */
+  .card-tile .macros { margin-top: 0.45rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.15rem 0.7rem; font-size: 10px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .card-tile .macros div { display: flex; justify-content: space-between; gap: 0.25rem; }
+  .card-tile .macros b { font-weight: 500; color: var(--foreground); }
 </style>
 </head>
 <body class="min-h-screen bg-background text-foreground antialiased">
@@ -417,6 +421,11 @@ const page = `<!DOCTYPE html>
     if (item.pe != null && isFinite(item.pe)) ratios.push('<span><b style="color:' + lerpColor(item.pe, 12, 4) + '">' + fmt1(item.pe) + '</b> g/€</span>');
     if (item.pk != null && isFinite(item.pk)) ratios.push('<span><b style="color:' + lerpColor(item.pk, 10, 3) + '">' + fmt1(item.pk) + '</b> g/100kcal</span>');
     ratios.push('<span>' + Math.round(item.cal) + ' kcal</span>');
+    // Full macro breakdown — present but the lowest-emphasis tier on the card.
+    const macros = [
+      nutriRow('Carbs', item.cb), nutriRow('Sugar', item.su), nutriRow('Fat', item.ft),
+      nutriRow('Sat fat', item.sf), nutriRow('Fiber', item.fi), nutriRow('Salt', item.sa),
+    ].filter(Boolean).join('');
     const body = [
       '<h3>' + escHtml(item.n) + '</h3>',
       item.es ? '<p class="es">' + escHtml(item.es) + '</p>' : '',
@@ -426,6 +435,7 @@ const page = `<!DOCTYPE html>
         (priceStr ? '<div class="price"><b>' + priceStr + '</b>' + (refStr ? '<small>' + escHtml(refStr) + '</small>' : '') + '</div>' : '') +
       '</div>',
       '<div class="ratios">' + ratios.join('') + '</div>',
+      macros ? '<div class="macros">' + macros + '</div>' : '',
     ].filter(Boolean).join('');
     return '<a href="' + productUrl(item) + '" target="_blank" rel="noopener" class="card-tile"><div class="imgwrap">' + (item.img ? '<img src="' + escHtml(item.img) + '" alt="" loading="lazy" decoding="async">' : '') + '<span class="rank">#' + rank + '</span><span class="score" style="background:' + lerpColor(item.ns, 10, 3) + '">' + fmt1(item.ns) + '</span></div><div class="body">' + body + '</div></a>';
   }
