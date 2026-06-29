@@ -25,7 +25,7 @@ const REPO = '/Users/mohamed/personal/extensions/NutriData';
 const SITE_DIR = '/Users/mohamed/personal/extensions/mercadona-protein-site/public';
 const MERCADONA_CARDS = `${REPO}/data/mercadona-cards.json`;
 const REWE_PRODUCTS = `${REPO}/data/rewe-products.json`;
-const DEFAULT_STORE = 'mercadona';
+const DEFAULT_STORE = 'rewe';
 
 const norm = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
