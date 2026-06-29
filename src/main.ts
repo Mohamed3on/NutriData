@@ -5,6 +5,7 @@ import './index.css';
 import { detectShop } from './shops/detectShop';
 import { getCachedSettings, getCurrentShopKey, loadSettings } from './settings';
 import { debounce } from './utils/debounce';
+import { maybeCollect } from './collect';
 
 const INJECTED_SIG_ATTR = 'data-nutridata-sig';
 
@@ -32,6 +33,7 @@ async function displayInfo(shop: Shop) {
   }
 
   const metrics = calculateMetrics(nutrientInfo, priceAndWeightInfo);
+  void maybeCollect(shop, document, nutrientInfo); // contribute this product to the index (fire-and-forget)
   const infoElement = createInfoElement(nutrientInfo, metrics);
   const extraStyle = shop.getMetricsCardExtraStyle?.();
   if (extraStyle) infoElement.style.cssText += extraStyle;

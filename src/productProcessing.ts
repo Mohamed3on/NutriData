@@ -5,6 +5,7 @@ import { getCachedData, setCachedData } from './cacheUtils';
 import { detectShop } from './shops/detectShop';
 import { isSearchUIEnabled } from './settings';
 import { isNutrientInfoComplete } from './utils';
+import { maybeCollect } from './collect';
 
 const NO_DATA_ATTR = 'data-nutridata-no-data';
 const NO_DATA_RETRY_MS = 5 * 60 * 1000;
@@ -64,6 +65,7 @@ async function getProductData(
 
   const priceAndWeightInfo = await shop.getPriceAndWeightInfo(doc);
   const metrics = calculateMetrics(nutrientInfo, priceAndWeightInfo);
+  void maybeCollect(shop, doc, nutrientInfo); // contribute to the index (fire-and-forget)
 
   if (useUrlCache) {
     await setCachedData(cleanUrl.toString(), { nutrientInfo, metrics, timestamp: Date.now() });

@@ -27,11 +27,33 @@ export interface ColorThresholds {
   bad: number;
 }
 
+// Product snapshot the extension contributes to the protein-index dataset
+// (POST /collect). nutritional_data reuses the NutrientInfo shape (value+unit
+// strings) the shop already parsed.
+export interface CollectPayload {
+  shop: string;
+  shop_id: string;
+  name: string | null;
+  url: string | null;
+  image_url: string | null;
+  categories: string[] | null;
+  price: number | null;
+  price_per_unit: number | null;
+  unit: string | null;
+  brand: string | null;
+  gtin: string | null;
+  nutritional_data: NutrientInfo;
+}
+
 export interface Shop {
   name: string;
   getCurrency: (url?: string) => '€' | '£';
   getNutrientInfo: (doc: Document) => Promise<NutrientInfo | null>;
   getPriceAndWeightInfo: (doc: Document) => Promise<PriceAndWeightInfo>;
+  // Optional: build a product snapshot to contribute to the protein-index
+  // dataset (POST /collect). Only shops that expose full structured product
+  // data on the page (REWE) implement this.
+  buildCollectPayload?: (doc: Document, nutrientInfo: NutrientInfo) => CollectPayload | null;
   // Optional: skip the shared HTML fetch when the shop resolves product data via API/cache
   // (e.g. Mercadona, which returns a synthetic Document carrying only the source URL).
   fetchProductData?: (url: string) => Promise<Document>;
