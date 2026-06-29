@@ -93,8 +93,12 @@ for (const p of reweProducts) {
     nutriScore = Math.pow(ppc100, 0.65) * Math.pow(ppc, 0.35) * fiberBonus * satFatPenalty;
   }
 
+  // REWE categories are a 3-4 level path (dept > … > leaf). The leaf (e.g.
+  // "Mozzarella", "Harzer") is the most useful filter, so map it to `sub`
+  // under the top-level dept rather than keeping the coarse second level.
   const cat = p.cats[0] || '';
-  const sub = p.cats[1] && p.cats[1] !== cat ? p.cats[1] : '';
+  const leaf = p.cats.length > 1 ? p.cats[p.cats.length - 1] : '';
+  const sub = leaf && leaf !== cat ? leaf : '';
   const name = p.name || '';
   const searchText = norm(`${name} ${p.brand || ''} ${p.cats.join(' ')}`);
   const ns = round(nutriScore, 3);
@@ -227,7 +231,7 @@ const page = `<!DOCTYPE html>
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     transition: box-shadow 150ms, border-color 150ms, transform 150ms;
     text-decoration: none;
-    content-visibility: auto; contain-intrinsic-size: auto 460px;
+    content-visibility: auto; contain-intrinsic-size: auto 360px;
   }
   .card-tile:hover {
     border-color: var(--ring); transform: translateY(-2px);
@@ -253,22 +257,19 @@ const page = `<!DOCTYPE html>
   .card-tile .crumb-link { cursor: pointer; border-radius: 2px; transition: color 120ms; }
   .card-tile .crumb-link:hover, .card-tile .crumb-link:focus-visible { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; outline: none; }
   .card-tile .crumb-sep { opacity: 0.6; }
-  .card-tile .metrics { margin-top: 0.375rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.5rem; font-size: 12px; }
-  .card-tile .metrics b { font-weight: 600; font-variant-numeric: tabular-nums; }
-  .card-tile .metrics u { font-weight: 400; color: var(--muted-foreground); text-decoration: none; }
-  .card-tile .foot { margin-top: auto; padding-top: 0.5rem; display: flex; align-items: end; justify-content: space-between; gap: 0.5rem; font-size: 12px; color: var(--muted-foreground); }
-  .card-tile .foot > div { display: flex; flex-direction: column; line-height: 1.2; }
-  .card-tile .foot > .r { align-items: flex-end; }
-  .card-tile .foot b { font-weight: 500; color: var(--foreground); font-variant-numeric: tabular-nums; }
-  .card-tile .foot .tiny { font-size: 11px; font-variant-numeric: tabular-nums; }
-  .card-tile .foot .price { font-weight: 600; color: var(--foreground); font-variant-numeric: tabular-nums; }
-  .card-tile .nutri {
-    margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border);
-    display: grid; grid-template-columns: 1fr 1fr; gap: 0.125rem 0.5rem;
-    font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums;
-  }
-  .card-tile .nutri div { display: flex; justify-content: space-between; gap: 0.25rem; }
-  .card-tile .nutri b { font-weight: 600; color: var(--foreground); }
+  /* Hero row: protein is the headline stat (paired with the NutriScore badge
+     up top); price sits quietly to its right. */
+  .card-tile .hero { margin-top: auto; padding-top: 0.5rem; display: flex; align-items: flex-end; justify-content: space-between; gap: 0.5rem; }
+  .card-tile .protein { display: flex; align-items: baseline; gap: 0.3rem; }
+  .card-tile .protein > b { font-size: 1.5rem; font-weight: 700; line-height: 1; color: var(--foreground); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .card-tile .protein > span { display: flex; flex-direction: column; font-size: 11px; line-height: 1.2; color: var(--muted-foreground); }
+  .card-tile .protein small { font-size: 9.5px; }
+  .card-tile .price { display: flex; flex-direction: column; align-items: flex-end; text-align: right; line-height: 1.2; }
+  .card-tile .price > b { font-size: 14px; font-weight: 600; color: var(--foreground); font-variant-numeric: tabular-nums; }
+  .card-tile .price small { font-size: 10px; color: var(--muted-foreground); }
+  /* Supporting efficiency line — quiet, divided off from the hero. */
+  .card-tile .ratios { display: flex; flex-wrap: wrap; gap: 0.1rem 0.6rem; margin-top: 0.5rem; padding-top: 0.45rem; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .card-tile .ratios b { font-weight: 600; }
 </style>
 </head>
 <body class="min-h-screen bg-background text-foreground antialiased">
@@ -282,8 +283,7 @@ const page = `<!DOCTYPE html>
       <h1 id="title" class="text-2xl font-semibold tracking-tight sm:text-3xl">${esc(def.h1)}</h1>
       <span id="total" class="text-sm tabular-nums text-muted-foreground">${def.count.toLocaleString()} products</span>
     </div>
-    <p id="blurb" class="mt-1.5 max-w-3xl text-sm text-muted-foreground">Independent project by <span class="font-medium text-foreground">NutriData</span> using product information from <span class="font-medium text-foreground">${esc(def.name)}</span>'s online store. <span class="font-medium text-foreground">Not affiliated with or endorsed by ${esc(def.name)}.</span></p>
-    <p class="mt-2 max-w-3xl text-sm text-muted-foreground">Ranked by <span class="font-medium text-foreground">NutriScore</span> — a geometric mean of protein-per-100-kcal and protein-per-€, lifted by fiber and dragged down by saturated fat.</p>
+    <p id="blurb" class="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">Ranked by <span class="font-medium text-foreground">NutriScore</span> — protein per 100&#8239;kcal × protein per €, adjusted for fiber &amp; saturated fat. Independent index, not affiliated with ${esc(def.name)}.</p>
   </header>
 
   <div class="form z-20 -mx-4 mb-4 border-b border-border bg-background px-4 py-3 sm:sticky sm:top-0">
@@ -327,6 +327,7 @@ const page = `<!DOCTYPE html>
   let DATA = [];
   let SUBS = {};
   let catCounts = {};
+  let allLeaves = []; // every leaf category across the store, for the always-on Category filter
 
   const grid = document.getElementById('grid');
   const input = document.getElementById('search');
@@ -410,17 +411,21 @@ const page = `<!DOCTYPE html>
     const refStr = item.kg != null && isFinite(item.kg)
       ? '€' + Number(item.kg).toFixed(2) + '/' + (item.rf || 'kg')
       : '';
-    const nutriBlock = [
-      nutriRow('Carbs', item.cb), nutriRow('Sugar', item.su), nutriRow('Fat', item.ft),
-      nutriRow('Sat fat', item.sf), nutriRow('Fiber', item.fi), nutriRow('Salt', item.sa),
-    ].filter(Boolean).join('');
+    const proteinStr = Number(item.p) >= 10 ? String(Math.round(item.p)) : Number(item.p).toFixed(1);
+    // Supporting efficiency line (the two NutriScore inputs + calories), muted.
+    const ratios = [];
+    if (item.pe != null && isFinite(item.pe)) ratios.push('<span><b style="color:' + lerpColor(item.pe, 12, 4) + '">' + fmt1(item.pe) + '</b> g/€</span>');
+    if (item.pk != null && isFinite(item.pk)) ratios.push('<span><b style="color:' + lerpColor(item.pk, 10, 3) + '">' + fmt1(item.pk) + '</b> g/100kcal</span>');
+    ratios.push('<span>' + Math.round(item.cal) + ' kcal</span>');
     const body = [
       '<h3>' + escHtml(item.n) + '</h3>',
       item.es ? '<p class="es">' + escHtml(item.es) + '</p>' : '',
       renderCrumb(item.cat, item.sub),
-      '<div class="metrics"><div><b style="color:' + lerpColor(item.pe, 12, 4) + '">' + fmt1(item.pe) + '</b><u>g/€</u></div><div><b style="color:' + lerpColor(item.pk, 10, 3) + '">' + fmt1(item.pk) + '</b><u>g/100kcal</u></div></div>',
-      '<div class="foot"><div class="l"><b>' + Number(item.p).toFixed(1) + 'g protein</b><span class="tiny">' + Math.round(item.cal) + ' kcal</span></div><div class="r">' + (priceStr ? '<span class="price">' + priceStr + '</span>' : '') + (refStr ? '<span class="tiny">' + escHtml(refStr) + '</span>' : '') + '</div></div>',
-      nutriBlock ? '<div class="nutri">' + nutriBlock + '</div>' : '',
+      '<div class="hero">' +
+        '<div class="protein"><b>' + proteinStr + '</b><span>g protein<small>per 100g</small></span></div>' +
+        (priceStr ? '<div class="price"><b>' + priceStr + '</b>' + (refStr ? '<small>' + escHtml(refStr) + '</small>' : '') + '</div>' : '') +
+      '</div>',
+      '<div class="ratios">' + ratios.join('') + '</div>',
     ].filter(Boolean).join('');
     return '<a href="' + productUrl(item) + '" target="_blank" rel="noopener" class="card-tile"><div class="imgwrap">' + (item.img ? '<img src="' + escHtml(item.img) + '" alt="" loading="lazy" decoding="async">' : '') + '<span class="rank">#' + rank + '</span><span class="score" style="background:' + lerpColor(item.ns, 10, 3) + '">' + fmt1(item.ns) + '</span></div><div class="body">' + body + '</div></a>';
   }
@@ -509,6 +514,7 @@ const page = `<!DOCTYPE html>
   function computeCats() {
     catCounts = {};
     SUBS = {};
+    const leafCounts = {};
     for (const item of DATA) {
       const cat = item.cat;
       if (!cat) continue;
@@ -516,16 +522,18 @@ const page = `<!DOCTYPE html>
       const sub = item.sub;
       if (sub && sub !== cat) {
         (SUBS[cat] = SUBS[cat] || {})[sub] = (SUBS[cat][sub] || 0) + 1;
+        leafCounts[sub] = (leafCounts[sub] || 0) + 1;
       }
     }
     for (const cat of Object.keys(SUBS)) {
       SUBS[cat] = Object.entries(SUBS[cat]).sort((a, b) => a[0].localeCompare(b[0]));
     }
+    allLeaves = Object.entries(leafCounts).sort((a, b) => a[0].localeCompare(b[0]));
   }
 
   function buildCatSelect() {
     const cats = Object.keys(catCounts).sort((a, b) => a.localeCompare(b));
-    const options = [['', 'All categories', DATA.length], ...cats.map(c => [c, c, catCounts[c]])];
+    const options = [['', 'All departments', DATA.length], ...cats.map(c => [c, c, catCounts[c]])];
     const optHtml = options.map(([v, label, n], i) =>
       '<div id="cat-opt-' + i + '" role="option" data-value="' + esc(v) + '">' + esc(label + (n != null ? ' (' + n.toLocaleString() + ')' : '')) + '</div>'
     ).join('');
@@ -533,7 +541,7 @@ const page = `<!DOCTYPE html>
     catSlot.innerHTML =
       '<div id="cat" class="select">' +
       '<button type="button" class="btn-outline w-full sm:w-[12rem]" id="cat-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="cat-listbox">' +
-      '<span class="truncate text-muted-foreground">All categories</span>' + CHEVRON + '</button>' +
+      '<span class="truncate text-muted-foreground">All departments</span>' + CHEVRON + '</button>' +
       '<div id="cat-popover" data-popover aria-hidden="true">' + searchHeader +
       '<div role="listbox" id="cat-listbox" aria-orientation="vertical" aria-labelledby="cat-trigger" class="max-h-[60vh] overflow-y-auto">' + optHtml + '</div></div>' +
       '<input type="hidden" name="cat-value" value="" />' +
@@ -542,18 +550,21 @@ const page = `<!DOCTYPE html>
     catValue = '';
   }
 
+  // The Category (leaf) filter is always usable: it lists every leaf in the
+  // store by default (searchable — type "mozz" → Mozzarella), and narrows to
+  // the chosen department's leaves once a department is picked.
   function buildSubSelect(cat) {
-    const subs = (cat && SUBS[cat]) || null;
-    const disabled = !subs || !subs.length;
-    const options = subs ? [['', 'All subcategories', null], ...subs.map(([n, c]) => [n, n, c])] : [['', 'All subcategories', null]];
+    const subs = cat && SUBS[cat] ? SUBS[cat] : allLeaves;
+    const options = [['', 'All categories', null], ...subs.map(([n, c]) => [n, n, c])];
     const optHtml = options.map(([v, label, n], i) =>
       '<div id="sub-opt-' + i + '" role="option" data-value="' + esc(v) + '">' + esc(label + (n != null ? ' (' + n.toLocaleString() + ')' : '')) + '</div>'
     ).join('');
+    const searchHeader = '<header>' + SEARCH_SVG + '<input type="text" placeholder="Search…" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" role="combobox" aria-expanded="false" aria-controls="sub-listbox" aria-labelledby="sub-trigger" /></header>';
     return (
       '<div id="sub" class="select">' +
-      '<button type="button" class="btn-outline w-full sm:w-[12rem]" id="sub-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="sub-listbox"' + (disabled ? ' disabled="disabled"' : '') + '>' +
-      '<span class="truncate text-muted-foreground">All subcategories</span>' + CHEVRON + '</button>' +
-      '<div id="sub-popover" data-popover aria-hidden="true">' +
+      '<button type="button" class="btn-outline w-full sm:w-[12rem]" id="sub-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="sub-listbox">' +
+      '<span class="truncate text-muted-foreground">All categories</span>' + CHEVRON + '</button>' +
+      '<div id="sub-popover" data-popover aria-hidden="true">' + searchHeader +
       '<div role="listbox" id="sub-listbox" aria-orientation="vertical" aria-labelledby="sub-trigger" class="max-h-[60vh] overflow-y-auto">' +
       optHtml +
       '</div></div>' +
@@ -601,7 +612,7 @@ const page = `<!DOCTYPE html>
   function updateChrome(cfg) {
     titleEl.textContent = cfg.h1;
     totalEl.textContent = cfg.count.toLocaleString() + ' products';
-    blurbEl.innerHTML = 'Independent project by <span class="font-medium text-foreground">NutriData</span> using product information from <span class="font-medium text-foreground">' + escHtml(cfg.name) + '</span>\\'s online store. <span class="font-medium text-foreground">Not affiliated with or endorsed by ' + escHtml(cfg.name) + '.</span>';
+    blurbEl.innerHTML = 'Ranked by <span class="font-medium text-foreground">NutriScore</span> — protein per 100\\u202Fkcal × protein per €, adjusted for fiber &amp; saturated fat. Independent index, not affiliated with ' + escHtml(cfg.name) + '.';
     footerEl.innerHTML = 'Product links open on <a href="' + cfg.home + '" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">' + escHtml(cfg.homeLabel) + '</a>. Product data and images are referenced from ' + escHtml(cfg.name) + ' product pages for identification. <a href="https://github.com/mohamed3on/NutriData" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">NutriData</a> is independent and not affiliated with or endorsed by ' + escHtml(cfg.name) + '.';
     document.querySelectorAll('#store-tabs .store-tab').forEach(b => {
       b.setAttribute('aria-selected', b.dataset.store === store ? 'true' : 'false');
@@ -620,7 +631,9 @@ const page = `<!DOCTYPE html>
     history.replaceState(null, '', url);
 
     try {
-      const res = await fetch(cfg.file, { cache: 'force-cache' });
+      // Revalidate against the server (assets ship must-revalidate + ETag), so
+      // a redeploy of {store}.json is picked up instead of pinned forever.
+      const res = await fetch(cfg.file, { cache: 'no-cache' });
       DATA = await res.json();
     } catch (e) {
       count.textContent = 'Failed to load products.';
