@@ -269,7 +269,10 @@ const page = `<!DOCTYPE html>
   .card-tile .ratios { display: flex; flex-wrap: wrap; gap: 0.1rem 0.6rem; margin-top: 0.5rem; padding-top: 0.45rem; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
   .card-tile .ratios b { font-weight: 600; }
   /* Macro breakdown: present, but the quietest tier — small, muted, no divider. */
-  .card-tile .macros { margin-top: 0.45rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.15rem 0.7rem; font-size: 10px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  /* auto-fit columns: 3-up where the row is wide enough (mobile horizontal
+     cards), 2-up on the narrow desktop grid tiles — so the full "Sat fat" label
+     never has to wrap, and value columns stay aligned at any width. */
+  .card-tile .macros { margin-top: 0.45rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 0.15rem 0.7rem; font-size: 10px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
   .card-tile .macros div { display: flex; justify-content: space-between; gap: 0.25rem; }
   .card-tile .macros b { font-weight: 500; color: var(--foreground); }
 
@@ -287,7 +290,6 @@ const page = `<!DOCTYPE html>
     .card-tile .hero { margin-top: 0.45rem; }
     .card-tile .protein > b { font-size: 1.7rem; }
     .card-tile .ratios { gap: 0.15rem 0.9rem; font-size: 11.5px; }
-    .card-tile .macros { gap: 0.25rem 1rem; font-size: 11px; }
   }
 </style>
 </head>
