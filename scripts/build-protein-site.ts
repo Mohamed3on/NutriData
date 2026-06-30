@@ -272,6 +272,23 @@ const page = `<!DOCTYPE html>
   .card-tile .macros { margin-top: 0.45rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.15rem 0.7rem; font-size: 10px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
   .card-tile .macros div { display: flex; justify-content: space-between; gap: 0.25rem; }
   .card-tile .macros b { font-weight: 500; color: var(--foreground); }
+
+  /* Mobile (< sm / 640px): one column of roomy horizontal rows. The 2-up grid
+     squeezed the name, ratios and 6-cell macro grid too tightly at phone widths
+     (iPhone is ~390–430px); here the image becomes a left thumbnail and the text
+     column gets the full width to breathe. The image stretches to the row height
+     (driven by the text), so the hero no longer needs margin-top:auto. */
+  @media (max-width: 639px) {
+    .card-tile { flex-direction: row; align-items: stretch; contain-intrinsic-size: auto 188px; }
+    .card-tile .imgwrap { flex: 0 0 37%; max-width: 150px; }
+    .card-tile img { aspect-ratio: auto; height: 100%; padding: 0.5rem; }
+    .card-tile .body { padding: 0.7rem 0.85rem 0.75rem; gap: 0.3rem; }
+    .card-tile h3 { font-size: 15px; }
+    .card-tile .hero { margin-top: 0.45rem; }
+    .card-tile .protein > b { font-size: 1.7rem; }
+    .card-tile .ratios { gap: 0.15rem 0.9rem; font-size: 11.5px; }
+    .card-tile .macros { gap: 0.25rem 1rem; font-size: 11px; }
+  }
 </style>
 </head>
 <body class="min-h-screen bg-background text-foreground antialiased">
@@ -310,7 +327,7 @@ const page = `<!DOCTYPE html>
     <p class="text-sm text-muted-foreground">No products match these filters.</p>
   </div>
 
-  <div id="grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+  <div id="grid" class="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
   </div>
 
   <div id="more-wrap" class="mt-6 hidden justify-center">
@@ -614,26 +631,24 @@ const page = `<!DOCTYPE html>
     });
   }
 
-  async function loadStore(s) {
-    const cfg = STORES[s];
-    if (!cfg) return;
-    store = s;
-    updateChrome(cfg);
-    count.textContent = 'Loading products…';
-    // reflect store in the URL so it's shareable / back-button friendly
-    const url = new URL(location.href);
-    url.searchParams.set('store', s);
-    history.replaceState(null, '', url);
+  // Parsed store data is cached in memory, so switching back to a store is
+  // instant — no refetch, no re-parse, no flash. fetchStore also dedups
+  // concurrent loads (a manual switch racing the idle prefetch).
+  const CACHE = {};
+  const inflight = {};
+  function fetchStore(s) {
+    if (CACHE[s]) return Promise.resolve(CACHE[s]);
+    if (inflight[s]) return inflight[s];
+    // Revalidate against the server (assets ship must-revalidate + ETag), so a
+    // redeploy of {store}.json is picked up instead of pinned forever. We only
+    // pay this once per store per session — subsequent switches hit CACHE.
+    return (inflight[s] = fetch(STORES[s].file, { cache: 'no-cache' })
+      .then((r) => r.json())
+      .then((d) => (CACHE[s] = d))
+      .finally(() => { delete inflight[s]; }));
+  }
 
-    try {
-      // Revalidate against the server (assets ship must-revalidate + ETag), so
-      // a redeploy of {store}.json is picked up instead of pinned forever.
-      const res = await fetch(cfg.file, { cache: 'no-cache' });
-      DATA = await res.json();
-    } catch (e) {
-      count.textContent = 'Failed to load products.';
-      return;
-    }
+  function applyStore() {
     // reset filters for the new store
     input.value = '';
     sortValue = 'score';
@@ -644,6 +659,31 @@ const page = `<!DOCTYPE html>
     catValue = '';
     subValue = '';
     scheduleRefresh(true);
+  }
+
+  async function loadStore(s) {
+    const cfg = STORES[s];
+    if (!cfg) return;
+    store = s;
+    updateChrome(cfg);
+    // reflect store in the URL so it's shareable / back-button friendly
+    const url = new URL(location.href);
+    url.searchParams.set('store', s);
+    history.replaceState(null, '', url);
+
+    if (CACHE[s]) { DATA = CACHE[s]; applyStore(); return; } // cached → instant swap
+
+    count.textContent = 'Loading products…';
+    let data;
+    try {
+      data = await fetchStore(s);
+    } catch (e) {
+      if (store === s) count.textContent = 'Failed to load products.';
+      return;
+    }
+    if (store !== s) return; // user switched again mid-fetch — drop the stale result
+    DATA = data;
+    applyStore();
   }
 
   input.addEventListener('input', () => scheduleRefresh(true, 90));
@@ -681,6 +721,12 @@ const page = `<!DOCTYPE html>
   });
 
   loadStore(store);
+
+  // Warm the other store(s) in the background once the page is idle, so the
+  // first manual switch is instant too (not just switching back).
+  (window.requestIdleCallback || ((f) => setTimeout(f, 800)))(() => {
+    for (const s in STORES) if (s !== store) fetchStore(s).catch(() => {});
+  });
 
   async function prewarmSelects() {
     for (const id of ['cat', 'sort']) {
