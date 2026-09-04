@@ -57,12 +57,32 @@ function compactToNutrientInfo(compact: (number | null)[]): NutrientInfo {
   };
 }
 
+// `reference_price` is a €/kg (or €/L) figure only when `reference_format`
+// says so: for 'unit' it prices a single capsule and for '100 g' it is ten
+// times too small, both of which inflate protein-per-€ wildly. `unit_size` is
+// a mass only when `size_format` is kg/l — 'ud' counts pieces (18 quail eggs,
+// not 18 kg) — so derive the price from it where that holds, fall back to
+// reference_price only for the formats where it already means €/kg, and report
+// nothing rather than a fabricated number when neither applies.
 function toPriceAndWeightInfo(pi: any): PriceAndWeightInfo {
   if (!pi) return {};
+  const price = parseNumeric(pi.unit_price) ?? undefined;
+  const unitSize = parseNumeric(pi.unit_size);
+  const sizeFormat = String(pi.size_format ?? '').toLowerCase();
+  const isMass = sizeFormat === 'kg' || sizeFormat === 'l';
+  const referenceFormat = String(pi.reference_format ?? '');
+  const pricePerKg =
+    isMass && price && unitSize
+      ? price / unitSize
+      : referenceFormat === 'kg' || referenceFormat === 'L'
+        ? parseNumeric(pi.reference_price) ?? undefined
+        : undefined;
   return {
-    price: parseNumeric(pi.unit_price) ?? undefined,
-    weight: parseNumeric(pi.unit_size) ?? undefined,
-    pricePerKg: parseNumeric(pi.reference_price) ?? undefined,
+    price,
+    // callers expect grams; unit_size is in kg/L for mass formats and a piece
+    // count otherwise, which is not a weight at all.
+    weight: isMass && unitSize ? unitSize * 1000 : undefined,
+    pricePerKg,
   };
 }
 

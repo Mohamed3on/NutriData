@@ -222,6 +222,45 @@ type Card = {
   proteinPer100Kcal: number;
 };
 const cards: Card[] = [];
+// Mercadona's `reference_price` is only a €/kg (or €/L) figure when
+// `reference_format` says so. For 'unit' it is the price of a single capsule
+// and for '100 g' it is ten times too small — reading either as €/kg inflated
+// protein-per-€ enormously and put coffee pods and gelatine sheets at the top
+// of the index. price / unit_size is self-consistent across every format (it
+// reproduces reference_price exactly for the 'kg' and 'L' ones), so derive
+// from that and keep reference_price only as a fallback when unit_size is
+// missing and the format is already a mass/volume.
+function referencePricePerKg(api: ApiRow): number | null {
+  // unit_size is only a mass/volume when size_format says so — for 'ud' it is
+  // a piece count (18 quail eggs, not 18 kg) and dividing by it invents a
+  // €0.10/kg price out of nothing.
+  if (isMassFormat(api) && api.price && api.price > 0 && api.unit_size && api.unit_size > 0) {
+    return api.price / api.unit_size;
+  }
+  const rf = api.reference_format;
+  if (api.price_per_kg && api.price_per_kg > 0 && (rf === 'kg' || rf === 'L')) {
+    return api.price_per_kg;
+  }
+  return null;
+}
+
+// The label for the derived price above: unit_size is expressed in the
+// product's size_format, so a derived figure is €/kg or €/L regardless of what
+// reference_format claimed.
+function referenceFormat(api: ApiRow): string | null {
+  if (isMassFormat(api) && api.price && api.price > 0 && api.unit_size && api.unit_size > 0) {
+    return api.size_format?.toLowerCase() === 'l' ? 'L' : 'kg';
+  }
+  return api.reference_format;
+}
+
+// 'kg' / 'l' put unit_size in kilos or litres; 'ud' counts pieces, and a piece
+// count can't be turned into a price per kilo without inventing a weight.
+function isMassFormat(api: ApiRow): boolean {
+  const sf = api.size_format?.toLowerCase();
+  return sf === 'kg' || sf === 'l';
+}
+
 let skippedNoApi = 0, skippedNoNutr = 0;
 for (const id of ids) {
   const api = existing.get(id);
@@ -231,12 +270,8 @@ for (const id of ids) {
   const [protein, carbs, sugar, fat, calories, fiber, salt, satFat] = ocr;
   if (protein == null || calories == null || calories <= 0) continue;
   const ppc100 = protein / (calories / 100);
-  let ppc: number | null = null;
-  if (api.price_per_kg && api.price_per_kg > 0) {
-    ppc = (protein * 10) / api.price_per_kg;
-  } else if (api.price && api.price > 0 && api.unit_size && api.unit_size > 0) {
-    ppc = (protein * 10 * api.unit_size) / api.price;
-  }
+  const pricePerKg = referencePricePerKg(api);
+  const ppc = pricePerKg != null ? (protein * 10) / pricePerKg : null;
   const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat, sugar) : null;
   cards.push({
     api, protein, carbs, sugar, fat, calories, fiber, salt, satFat,
@@ -263,7 +298,7 @@ const clientCardsJson = JSON.stringify(
     const category = c.api.category || '';
     const subcategory = c.api.subcategory && c.api.subcategory !== c.api.category ? c.api.subcategory : '';
     const price = round(c.api.price, 2);
-    const pricePerKg = round(c.api.price_per_kg, 2);
+    const pricePerKg = round(referencePricePerKg(c.api), 2);
     const carbs = round(c.carbs, 1);
     const sugar = round(c.sugar, 1);
     const fat = round(c.fat, 1);
@@ -293,7 +328,7 @@ const clientCardsJson = JSON.stringify(
       cal: round(c.calories, 1) || 0,
       ...(price !== undefined ? { pr: price } : {}),
       ...(pricePerKg !== undefined ? { kg: pricePerKg } : {}),
-      ...(c.api.reference_format ? { rf: c.api.reference_format } : {}),
+      ...(referenceFormat(c.api) ? { rf: referenceFormat(c.api) } : {}),
       ...(carbs !== undefined ? { cb: carbs } : {}),
       ...(sugar !== undefined ? { su: sugar } : {}),
       ...(fat !== undefined ? { ft: fat } : {}),

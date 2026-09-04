@@ -73,7 +73,7 @@ function isSane(
 
 const reweCards: Card[] = [];
 const seen = new Set<string>();
-let skipNoNutr = 0, skipInsane = 0, dupes = 0;
+let skipNoNutr = 0, skipInsane = 0, dupes = 0, skipConcentrate = 0;
 for (const p of reweProducts) {
   if (seen.has(p.id)) { dupes++; continue; }
   const [protein, carbs, sugar, fat, calories, fiber, salt, satFat] = p.nutri;
@@ -85,7 +85,22 @@ for (const p of reweProducts) {
   // price_per_unit is REWE's Grundpreis in €/kg (or €/L) — same role as
   // Mercadona's reference price. protein is per 100g → *10 = per kg.
   const ppu = p.ppu;
-  const ppc = ppu && ppu > 0 ? (protein * 10) / ppu : null;
+  const name = p.name || '';
+  // REWE quotes the Grundpreis of a drink concentrate per litre of *prepared*
+  // product — a €1.49 tin of bouillon powder shows €0.21/l because it yields
+  // 7l — while `nutri` describes 100g of the powder in the tin. Reading the two
+  // together valued Knorr stock at ~900g of protein per euro and handed it the
+  // top four places of the index. The tell is a volume reference whose implied
+  // pack size is bigger than any real container, combined with dry-goods energy
+  // density: a genuine ready-to-drink liquid sold by the litre is nowhere near
+  // 150 kcal/100ml. Such a Grundpreis says nothing about protein per euro, so
+  // drop the price term and let the item rank unscored rather than first.
+  const isVolumeRef = /\b\d+(?:[.,]\d+)?\s*(?:ml|cl|l|liter|litre)\b/i.test(name);
+  const impliedPack = ppu && ppu > 0 && p.price ? p.price / ppu : null;
+  const isConcentrate =
+    isVolumeRef && impliedPack != null && impliedPack >= 3 && calories >= 150;
+  if (isConcentrate) skipConcentrate++;
+  const ppc = ppu && ppu > 0 && !isConcentrate ? (protein * 10) / ppu : null;
 
   const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat, sugar) : null;
 
@@ -95,7 +110,6 @@ for (const p of reweProducts) {
   const cat = p.cats[0] || '';
   const leaf = p.cats.length > 1 ? p.cats[p.cats.length - 1] : '';
   const sub = leaf && leaf !== cat ? leaf : '';
-  const name = p.name || '';
   const searchText = norm(`${name} ${p.brand || ''} ${p.cats.join(' ')}`);
   const ns = round(nutriScore, 3);
   const pe = round(ppc, 3);
@@ -115,7 +129,7 @@ for (const p of reweProducts) {
     pr: round(p.price, 2), kg: round(ppu, 2),
     // REWE Grundpreis is €/L for liquids; detect from a volume measure in the
     // name so the card shows €x/L instead of the €x/kg fallback.
-    rf: /\b\d+(?:[.,]\d+)?\s*(?:ml|cl|l)\b/i.test(name) ? 'L' : undefined,
+    rf: isVolumeRef ? 'L' : undefined,
     cb: round(carbs, 1), su: round(sugar, 1), ft: round(fat, 1),
     sf: round(satFat, 1), fi: round(fiber, 1), sa: round(salt, 1),
   });
@@ -131,7 +145,7 @@ const byScore = (a: Card, b: Card) => {
 };
 mercadonaCards.sort(byScore);
 reweCards.sort(byScore);
-console.log(`rewe: ${reweCards.length} cards  (skipped no-nutrition=${skipNoNutr}, insane=${skipInsane}, dupes=${dupes})`);
+console.log(`rewe: ${reweCards.length} cards  (skipped no-nutrition=${skipNoNutr}, insane=${skipInsane}, dupes=${dupes}; unpriced concentrates=${skipConcentrate})`);
 
 // External JSON files, fetched at runtime — no <script> context to escape for.
 const dataJson = (cards: Card[]) => JSON.stringify(cards);
