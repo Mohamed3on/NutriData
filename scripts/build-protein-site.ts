@@ -19,7 +19,7 @@
 // rebuild fed by the extension) only means regenerating data/rewe-products.json
 // and re-running this script — the site stays identical.
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { computeNutriScore } from '../src/nutriScore';
 
 const REPO = `${import.meta.dir}/..`;
@@ -149,6 +149,9 @@ console.log(`rewe: ${reweCards.length} cards  (skipped no-nutrition=${skipNoNutr
 
 // External JSON files, fetched at runtime — no <script> context to escape for.
 const dataJson = (cards: Card[]) => JSON.stringify(cards);
+// The site's public/ holds only generated files and isn't tracked, so a fresh
+// clone (CI included) has no directory to write into.
+await mkdir(SITE_DIR, { recursive: true });
 await writeFile(`${SITE_DIR}/mercadona.json`, dataJson(mercadonaCards));
 await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards));
 
