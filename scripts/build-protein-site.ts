@@ -87,7 +87,7 @@ for (const p of reweProducts) {
   const ppu = p.ppu;
   const ppc = ppu && ppu > 0 ? (protein * 10) / ppu : null;
 
-  const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat) : null;
+  const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat, sugar) : null;
 
   // REWE categories are a 3-4 level path (dept > … > leaf). The leaf (e.g.
   // "Mozzarella", "Harzer") is the most useful filter, so map it to `sub`

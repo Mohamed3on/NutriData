@@ -43,8 +43,9 @@ export function calculateMetrics(
     const satFat = nutrientInfo.saturatedFat
       ? parseFloat(nutrientInfo.saturatedFat.replace(/[^\d.-]/g, ''))
       : 0;
+    const sugar = nutrientInfo.sugar ? parseFloat(nutrientInfo.sugar.replace(/[^\d.-]/g, '')) : 0;
 
-    metrics.nutriScore = computeNutriScore(ppc100, ppc, fiber, satFat).toFixed(1);
+    metrics.nutriScore = computeNutriScore(ppc100, ppc, fiber, satFat, sugar).toFixed(1);
   } else {
     metrics.nutriScore = '0';
   }

@@ -237,7 +237,7 @@ for (const id of ids) {
   } else if (api.price && api.price > 0 && api.unit_size && api.unit_size > 0) {
     ppc = (protein * 10 * api.unit_size) / api.price;
   }
-  const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat) : null;
+  const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat, sugar) : null;
   cards.push({
     api, protein, carbs, sugar, fat, calories, fiber, salt, satFat,
     nutriScore, proteinPerEuro: ppc, proteinPer100Kcal: ppc100,
