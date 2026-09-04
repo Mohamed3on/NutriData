@@ -268,6 +268,12 @@ const page = `<!DOCTYPE html>
   #cat-popover:has(header input:not(:placeholder-shown)) [role="option"] { padding-left: 0.5rem; }
   #cat-popover:has(header input:not(:placeholder-shown)) .opt-trail { display: inline; }
   #cat-trigger .opt-count { display: none; }
+  /* A deep trail must not stretch the popover past the viewport (it did on
+     phones): cap the width and let the trail — not the name or the count —
+     give way. */
+  #cat-popover { max-width: min(28rem, calc(100vw - 2rem)); }
+  #cat-listbox .opt-name { flex: 0 0 auto; }
+  #cat-listbox .opt-trail { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* The trail follows the node name so a too-long trigger truncates the
      ancestors rather than the category actually picked. The trigger is not a
      flex row, so it carries its own spacing (ignored while it is hidden). */
@@ -659,13 +665,15 @@ const page = `<!DOCTYPE html>
       const trail = node.key.split(SEP).slice(0, -1);
       opts.push(
         '<div id="cat-opt-' + (i + 1) + '" role="option" data-value="' + escHtml(node.key) + '" style="--d:' + node.depth + '" data-filter="' + escHtml(node.filter) + '">' +
-        '<span>' + escHtml(node.name) + '</span>' +
+        '<span class="opt-name">' + escHtml(node.name) + '</span>' +
         (trail.length ? '<span class="opt-trail">' + escHtml(trail.join(' › ')) + '</span>' : '') +
         '<span class="opt-count">' + node.count.toLocaleString() + '</span></div>'
       );
     });
     const searchHeader = '<header>' + SEARCH_SVG + '<input type="text" placeholder="Search categories…" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" role="combobox" aria-expanded="false" aria-controls="cat-listbox" aria-labelledby="cat-trigger" /></header>';
-    catSlot.innerHTML = '<div id="cat" class="select">' +
+    // basecoat's .select is inline-flex, so inside the slot wrapper it shrinks
+    // to its content — w-full keeps it as wide as the stacked mobile toolbar.
+    catSlot.innerHTML = '<div id="cat" class="select w-full sm:w-auto">' +
       '<button type="button" class="btn-outline w-full sm:w-[16rem]" id="cat-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="cat-listbox">' +
       '<span class="truncate text-muted-foreground">All categories</span>' + CHEVRON + '</button>' +
       '<div id="cat-popover" data-popover aria-hidden="true">' + searchHeader +
