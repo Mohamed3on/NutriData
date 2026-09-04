@@ -38,7 +38,15 @@ const esc = (s: string) =>
 // ---------- Mercadona: load prebuilt cards, add absolute product url ----------
 type Card = Record<string, unknown> & { id: string };
 const mercadonaCards: Card[] = JSON.parse(await readFile(MERCADONA_CARDS, 'utf8'));
-for (const c of mercadonaCards) c.u = `https://tienda.mercadona.es/product/${c.id}/`;
+for (const c of mercadonaCards) {
+  c.u = `https://tienda.mercadona.es/product/${c.id}/`;
+  // Mercadona is a 2-level tree; normalise it to the same `cs` path array REWE
+  // uses so one filter serves both stores.
+  const segs = [c.cat, c.sub].filter((s): s is string => typeof s === 'string' && !!s);
+  c.cs = segs.length > 1 && segs[0] === segs[1] ? [segs[0]] : segs;
+  delete c.cat;
+  delete c.sub;
+}
 console.log(`mercadona: ${mercadonaCards.length} cards`);
 
 // ---------- REWE: build cards from cleaned dump ----------
@@ -104,13 +112,11 @@ for (const p of reweProducts) {
 
   const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat, sugar) : null;
 
-  // REWE categories are a 3-4 level path (dept > … > leaf). The leaf (e.g.
-  // "Mozzarella", "Harzer") is the most useful filter, so map it to `sub`
-  // under the top-level dept rather than keeping the coarse second level.
-  const cat = p.cats[0] || '';
-  const leaf = p.cats.length > 1 ? p.cats[p.cats.length - 1] : '';
-  const sub = leaf && leaf !== cat ? leaf : '';
-  const searchText = norm(`${name} ${p.brand || ''} ${p.cats.join(' ')}`);
+  // REWE categories are a 3-4 level path (dept > … > leaf). Keep every level:
+  // the site's category filter is a tree, so mid-levels like "Eiscreme &
+  // Eiswürfel" stay selectable instead of being collapsed away to the leaf.
+  const cats = p.cats.filter(Boolean);
+  const searchText = norm(`${name} ${p.brand || ''} ${cats.join(' ')}`);
   const ns = round(nutriScore, 3);
   const pe = round(ppc, 3);
 
@@ -119,8 +125,7 @@ for (const p of reweProducts) {
   reweCards.push({
     id: p.id, n: name, u: p.url,
     img: p.img || undefined,
-    cat: cat || undefined,
-    sub: sub || undefined,
+    cs: cats,
     q: searchText, sn: norm(name),
     ns, pe,
     pk: round(ppc100, 3) || 0,
@@ -147,8 +152,28 @@ mercadonaCards.sort(byScore);
 reweCards.sort(byScore);
 console.log(`rewe: ${reweCards.length} cards  (skipped no-nutrition=${skipNoNutr}, insane=${skipInsane}, dupes=${dupes}; unpriced concentrates=${skipConcentrate})`);
 
+// ---------- category paths → one shared table per store ----------
+// Each card points at its full category path by index instead of repeating the
+// strings 16k times. That keeps every level of the path available to the site's
+// tree filter and still ships smaller than the old flat cat/sub pair did.
+const PATH_SEP = '\u001f'; // never appears in a category name
+function withPathTable(cards: Card[]) {
+  const index = new Map<string, number>();
+  const paths: string[][] = [];
+  for (const card of cards) {
+    const segs = (card.cs as string[] | undefined) || [];
+    delete card.cs;
+    if (!segs.length) continue;
+    const key = segs.join(PATH_SEP);
+    let i = index.get(key);
+    if (i === undefined) { i = paths.length; index.set(key, i); paths.push(segs); }
+    card.c = i;
+  }
+  return { paths, cards };
+}
+
 // External JSON files, fetched at runtime — no <script> context to escape for.
-const dataJson = (cards: Card[]) => JSON.stringify(cards);
+const dataJson = (cards: Card[]) => JSON.stringify(withPathTable(cards));
 // The site's public/ holds only generated files and isn't tracked, so a fresh
 // clone (CI included) has no directory to write into.
 await mkdir(SITE_DIR, { recursive: true });
@@ -234,6 +259,22 @@ const page = `<!DOCTYPE html>
   input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
   [data-popover] { transition: none !important; animation: none !important; }
 
+  /* Category tree select: one option per node at every depth. Browsing shows
+     the hierarchy as indentation. Searching leaves the matches orphaned from
+     their parents, so indentation gives way to the ancestor trail — and the
+     trigger, which never has a tree around it, always shows the trail. */
+  #cat-listbox [role="option"] { padding-left: calc(0.5rem + var(--d, 0) * 0.85rem); }
+  #cat-listbox .opt-trail { display: none; }
+  #cat-popover:has(header input:not(:placeholder-shown)) [role="option"] { padding-left: 0.5rem; }
+  #cat-popover:has(header input:not(:placeholder-shown)) .opt-trail { display: inline; }
+  #cat-trigger .opt-count { display: none; }
+  /* The trail follows the node name so a too-long trigger truncates the
+     ancestors rather than the category actually picked. The trigger is not a
+     flex row, so it carries its own spacing (ignored while it is hidden). */
+  .opt-trail { margin-left: 0.4rem; color: var(--muted-foreground); }
+  .opt-trail::before { content: '· '; }
+  .opt-count { margin-left: auto; padding-left: 0.75rem; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
   #store-tabs { display: inline-flex; gap: 2px; border-radius: 0.5rem; border: 1px solid var(--border); background: var(--muted); padding: 3px; }
   .store-tab { padding: 0.25rem 0.85rem; font-size: 13px; font-weight: 500; border-radius: 0.375rem; color: var(--muted-foreground); cursor: pointer; border: none; background: transparent; transition: background 120ms, color 120ms; }
   .store-tab[aria-selected="true"] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.08); }
@@ -267,7 +308,7 @@ const page = `<!DOCTYPE html>
   .card-tile .crumb {
     display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.25rem;
     font-size: 10px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;
-    color: var(--muted-foreground); line-height: 1.3; max-height: calc(1.3em * 3);
+    color: var(--muted-foreground); line-height: 1.3; max-height: calc(1.3em * 4);
   }
   .card-tile .crumb-link { cursor: pointer; border-radius: 2px; transition: color 120ms; }
   .card-tile .crumb-link:hover, .card-tile .crumb-link:focus-visible { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; outline: none; }
@@ -331,7 +372,6 @@ const page = `<!DOCTYPE html>
       </div>
       <div class="grid grid-cols-1 gap-2 sm:flex sm:flex-none sm:items-center">
         <div id="cat-slot"></div>
-        <div id="sub-slot"></div>
         ${sortSelectHtml}
         <button type="button" id="reset" class="btn-outline hidden w-full sm:w-auto" aria-label="Reset filters">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -361,15 +401,17 @@ const page = `<!DOCTYPE html>
   const params = new URLSearchParams(location.search);
   let store = STORES[params.get('store')] ? params.get('store') : '${DEFAULT_STORE}';
 
+  const SEP = '\\u001f'; // joins a category path into one comparable key
+
   let DATA = [];
-  let SUBS = {};
-  let catCounts = {};
-  let allLeaves = []; // every leaf category across the store, for the always-on Category filter
+  let PATHS = [];      // category path per index, e.g. ['Tiefkühlkost', 'Eiscreme & Eiswürfel', 'Eis im Becher']
+  let PATH_KEYS = [];  // the same paths, SEP-joined
+  let CAT_NODES = [];  // every node of the tree, depth-first: { key, name, depth, count, filter }
+  let catMask = null;  // Uint8Array over PATHS: 1 where the path sits under the selected node
 
   const grid = document.getElementById('grid');
   const input = document.getElementById('search');
   const catSlot = document.getElementById('cat-slot');
-  const subSlot = document.getElementById('sub-slot');
   const count = document.getElementById('count');
   const emptyEl = document.getElementById('empty');
   const moreWrap = document.getElementById('more-wrap');
@@ -380,8 +422,7 @@ const page = `<!DOCTYPE html>
   const blurbEl = document.getElementById('blurb');
   const footerEl = document.getElementById('footer');
 
-  let catValue = '';
-  let subValue = '';
+  let catValue = ''; // SEP-joined path of the selected tree node ('' = whole store)
   let sortValue = 'score';
   let renderLimit = PAGE_SIZE;
   let matched = [];
@@ -428,12 +469,14 @@ const page = `<!DOCTYPE html>
     return '<div><span>' + label + '</span><b>' + Number(val).toFixed(1) + 'g</b></div>';
   }
 
-  function renderCrumb(cat, sub) {
-    if (!cat) return '';
-    const parts = ['<span class="crumb-link" data-crumb-cat="' + escHtml(cat) + '" role="button" tabindex="0">' + escHtml(cat) + '</span>'];
-    if (sub && sub !== cat) {
-      parts.push('<span class="crumb-sep" aria-hidden="true">›</span>');
-      parts.push('<span class="crumb-link" data-crumb-cat="' + escHtml(cat) + '" data-crumb-sub="' + escHtml(sub) + '" role="button" tabindex="0">' + escHtml(sub) + '</span>');
+  // The full category path, every segment a shortcut into that node of the tree.
+  function renderCrumb(pathIdx) {
+    const segs = pathIdx == null ? null : PATHS[pathIdx];
+    if (!segs || !segs.length) return '';
+    const parts = [];
+    for (let d = 0; d < segs.length; d++) {
+      if (d) parts.push('<span class="crumb-sep" aria-hidden="true">›</span>');
+      parts.push('<span class="crumb-link" data-crumb="' + escHtml(segs.slice(0, d + 1).join(SEP)) + '" role="button" tabindex="0">' + escHtml(segs[d]) + '</span>');
     }
     return '<p class="crumb">' + parts.join('') + '</p>';
   }
@@ -457,7 +500,7 @@ const page = `<!DOCTYPE html>
     const body = [
       '<h3>' + escHtml(item.n) + '</h3>',
       item.es ? '<p class="es">' + escHtml(item.es) + '</p>' : '',
-      renderCrumb(item.cat, item.sub),
+      renderCrumb(item.c),
       '<div class="hero">' +
         '<div class="protein"><b>' + proteinStr + '</b><span>g protein<small>per 100g</small></span></div>' +
         (priceStr ? '<div class="price"><b>' + priceStr + '</b>' + (refStr ? '<small>' + escHtml(refStr) + '</small>' : '') + '</div>' : '') +
@@ -471,7 +514,7 @@ const page = `<!DOCTYPE html>
   function renderGrid() {
     const totalMatches = matched.length;
     const visibleCount = Math.min(renderLimit, totalMatches);
-    const active = input.value.trim() || catValue || subValue;
+    const active = input.value.trim() || catValue;
     resetBtn.classList.toggle('hidden', !active);
 
     if (totalMatches === 0) {
@@ -516,8 +559,7 @@ const page = `<!DOCTYPE html>
     const next = [];
     for (let i = 0; i < DATA.length; i++) {
       const item = DATA[i];
-      if (catValue && item.cat !== catValue) continue;
-      if (subValue && item.sub !== subValue) continue;
+      if (catMask && !(item.c != null && catMask[item.c])) continue;
       if (terms.length && !terms.every(t => item.q.includes(t))) continue;
       next.push(item);
     }
@@ -550,64 +592,88 @@ const page = `<!DOCTYPE html>
   const CHEVRON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground opacity-50 shrink-0"><path d="m6 9 6 6 6-6"/></svg>';
   const SEARCH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>';
 
-  // Derive category counts + subcategory map from the loaded store data.
+  // Flatten the store's category paths into one tree: a node per distinct path
+  // prefix, counted over its whole subtree, listed depth-first so every node
+  // follows its parent. Every level ends up selectable — including the middle
+  // ones ("Eiscreme & Eiswürfel") that a leaf-only list could never reach.
   function computeCats() {
-    catCounts = {};
-    SUBS = {};
-    const leafCounts = {};
-    for (const item of DATA) {
-      const cat = item.cat;
-      if (!cat) continue;
-      catCounts[cat] = (catCounts[cat] || 0) + 1;
-      const sub = item.sub;
-      if (sub && sub !== cat) {
-        (SUBS[cat] = SUBS[cat] || {})[sub] = (SUBS[cat][sub] || 0) + 1;
-        leafCounts[sub] = (leafCounts[sub] || 0) + 1;
+    PATH_KEYS = PATHS.map(segs => segs.join(SEP));
+    const perPath = new Array(PATHS.length).fill(0);
+    for (const item of DATA) if (item.c != null) perPath[item.c]++;
+
+    const counts = new Map();
+    const used = [];
+    for (let i = 0; i < PATHS.length; i++) {
+      if (!perPath[i]) continue;
+      used.push(i);
+      const segs = PATHS[i];
+      for (let d = 1; d <= segs.length; d++) {
+        const key = segs.slice(0, d).join(SEP);
+        counts.set(key, (counts.get(key) || 0) + perPath[i]);
       }
     }
-    for (const cat of Object.keys(SUBS)) {
-      SUBS[cat] = Object.entries(SUBS[cat]).sort((a, b) => a[0].localeCompare(b[0]));
+    used.sort((a, b) => {
+      const x = PATHS[a], y = PATHS[b];
+      for (let d = 0; d < Math.min(x.length, y.length); d++) {
+        const c = x[d].localeCompare(y[d]);
+        if (c) return c;
+      }
+      return x.length - y.length;
+    });
+
+    CAT_NODES = [];
+    const emitted = new Set();
+    for (const i of used) {
+      const segs = PATHS[i];
+      for (let d = 1; d <= segs.length; d++) {
+        const key = segs.slice(0, d).join(SEP);
+        if (emitted.has(key)) continue;
+        emitted.add(key);
+        // Match on the whole path, accents folded, so typing a parent's name
+        // ("tiefkuhlkost") surfaces everything beneath it.
+        const trail = segs.slice(0, d).join(' ');
+        CAT_NODES.push({
+          key, name: segs[d - 1], depth: d - 1,
+          count: counts.get(key) || 0,
+          filter: trail + ' ' + norm(trail),
+        });
+      }
     }
-    allLeaves = Object.entries(leafCounts).sort((a, b) => a[0].localeCompare(b[0]));
   }
 
-  // One markup builder for both filter selects (department + category), each
-  // searchable. options: [value, label, count|null][].
-  function buildSelectHtml(id, placeholder, options) {
-    const optHtml = options.map(([v, label, n], i) =>
-      '<div id="' + id + '-opt-' + i + '" role="option" data-value="' + escHtml(v) + '">' + escHtml(label + (n != null ? ' (' + n.toLocaleString() + ')' : '')) + '</div>'
-    ).join('');
-    const searchHeader = '<header>' + SEARCH_SVG + '<input type="text" placeholder="Search…" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" role="combobox" aria-expanded="false" aria-controls="' + id + '-listbox" aria-labelledby="' + id + '-trigger" /></header>';
-    return '<div id="' + id + '" class="select">' +
-      '<button type="button" class="btn-outline w-full sm:w-[12rem]" id="' + id + '-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="' + id + '-listbox">' +
-      '<span class="truncate text-muted-foreground">' + escHtml(placeholder) + '</span>' + CHEVRON + '</button>' +
-      '<div id="' + id + '-popover" data-popover aria-hidden="true">' + searchHeader +
-      '<div role="listbox" id="' + id + '-listbox" aria-orientation="vertical" aria-labelledby="' + id + '-trigger" class="max-h-[60vh] overflow-y-auto">' + optHtml + '</div></div>' +
-      '<input type="hidden" name="' + id + '-value" value="" />' +
-      '</div>';
+  // Selecting a node matches it and everything below it, so mark the paths once
+  // per change instead of re-splitting strings for all 16k cards on every pass.
+  function setCatValue(v) {
+    catValue = v || '';
+    if (!catValue) { catMask = null; return; }
+    const prefix = catValue + SEP;
+    catMask = new Uint8Array(PATHS.length);
+    for (let i = 0; i < PATH_KEYS.length; i++) {
+      catMask[i] = PATH_KEYS[i] === catValue || PATH_KEYS[i].startsWith(prefix) ? 1 : 0;
+    }
   }
 
   function buildCatSelect() {
-    const cats = Object.keys(catCounts).sort((a, b) => a.localeCompare(b));
-    const options = [['', 'All departments', DATA.length], ...cats.map(c => [c, c, catCounts[c]])];
-    catSlot.innerHTML = buildSelectHtml('cat', 'All departments', options);
-    attachSelectListener('cat', v => { catValue = v; rebuildSub(catValue); scheduleRefresh(true); });
-    catValue = '';
-  }
-
-  // The Category (leaf) filter is always usable: it lists every leaf in the
-  // store by default (searchable — type "mozz" → Mozzarella), and narrows to
-  // the chosen department's leaves once a department is picked.
-  function buildSubSelect(cat) {
-    const subs = cat && SUBS[cat] ? SUBS[cat] : allLeaves;
-    const options = [['', 'All categories', null], ...subs.map(([n, c]) => [n, n, c])];
-    return buildSelectHtml('sub', 'All categories', options);
-  }
-
-  function rebuildSub(cat) {
-    subSlot.innerHTML = buildSubSelect(cat);
-    attachSelectListener('sub', v => { subValue = v; scheduleRefresh(true); });
-    subValue = '';
+    const opts = ['<div id="cat-opt-0" role="option" data-value="" data-force data-filter="all categories">All categories<span class="opt-count">' + DATA.length.toLocaleString() + '</span></div>'];
+    CAT_NODES.forEach((node, i) => {
+      const trail = node.key.split(SEP).slice(0, -1);
+      opts.push(
+        '<div id="cat-opt-' + (i + 1) + '" role="option" data-value="' + escHtml(node.key) + '" style="--d:' + node.depth + '" data-filter="' + escHtml(node.filter) + '">' +
+        '<span>' + escHtml(node.name) + '</span>' +
+        (trail.length ? '<span class="opt-trail">' + escHtml(trail.join(' › ')) + '</span>' : '') +
+        '<span class="opt-count">' + node.count.toLocaleString() + '</span></div>'
+      );
+    });
+    const searchHeader = '<header>' + SEARCH_SVG + '<input type="text" placeholder="Search categories…" autocomplete="off" autocorrect="off" spellcheck="false" aria-autocomplete="list" role="combobox" aria-expanded="false" aria-controls="cat-listbox" aria-labelledby="cat-trigger" /></header>';
+    catSlot.innerHTML = '<div id="cat" class="select">' +
+      '<button type="button" class="btn-outline w-full sm:w-[16rem]" id="cat-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="cat-listbox">' +
+      '<span class="truncate text-muted-foreground">All categories</span>' + CHEVRON + '</button>' +
+      '<div id="cat-popover" data-popover aria-hidden="true">' + searchHeader +
+      '<div role="listbox" id="cat-listbox" aria-orientation="vertical" aria-labelledby="cat-trigger" class="max-h-[60vh] overflow-y-auto">' + opts.join('') + '</div></div>' +
+      '<input type="hidden" name="cat-value" value="" />' +
+      '</div>';
+    attachSelectListener('cat', v => { setCatValue(v); scheduleRefresh(true); });
+    setCatValue('');
   }
 
   function attachSelectListener(id, onChange) {
@@ -615,7 +681,12 @@ const page = `<!DOCTYPE html>
     if (!root) return;
     root.addEventListener('change', (e) => {
       const v = e?.detail?.value ?? getVal(id);
-      onChange(Array.isArray(v) ? (v[0] || '') : (v || ''));
+      const value = Array.isArray(v) ? (v[0] || '') : (v || '');
+      // basecoat copies the chosen option's markup into the trigger but leaves
+      // its styling alone — keep the muted placeholder look only while unset.
+      const label = root.querySelector('#' + id + '-trigger span');
+      if (label) label.classList.toggle('text-muted-foreground', !value);
+      onChange(value);
     });
   }
 
@@ -631,7 +702,9 @@ const page = `<!DOCTYPE html>
       : root.querySelector('[role="option"][data-value=""]');
     if (hidden) hidden.value = v;
     if (triggerSpan) {
-      triggerSpan.textContent = opt ? opt.textContent : v;
+      // innerHTML, not textContent: the category options carry an ancestor
+      // trail and a count that the trigger styles differently (see #cat-*).
+      if (opt) triggerSpan.innerHTML = opt.innerHTML; else triggerSpan.textContent = v;
       triggerSpan.classList.toggle('text-muted-foreground', !v);
     }
     root.querySelectorAll('[role="option"]').forEach(o => {
@@ -667,16 +740,15 @@ const page = `<!DOCTYPE html>
       .finally(() => { delete inflight[s]; }));
   }
 
-  function applyStore() {
+  function applyStore(payload) {
+    PATHS = payload.paths || [];
+    DATA = payload.cards || [];
     // reset filters for the new store
     input.value = '';
     sortValue = 'score';
     syncSelect('sort', 'score');
     computeCats();
     buildCatSelect();
-    rebuildSub('');
-    catValue = '';
-    subValue = '';
     scheduleRefresh(true);
   }
 
@@ -690,7 +762,7 @@ const page = `<!DOCTYPE html>
     url.searchParams.set('store', s);
     history.replaceState(null, '', url);
 
-    if (CACHE[s]) { DATA = CACHE[s]; applyStore(); return; } // cached → instant swap
+    if (CACHE[s]) { applyStore(CACHE[s]); return; } // cached → instant swap
 
     count.textContent = 'Loading products…';
     let data;
@@ -701,8 +773,7 @@ const page = `<!DOCTYPE html>
       return;
     }
     if (store !== s) return; // user switched again mid-fetch — drop the stale result
-    DATA = data;
-    applyStore();
+    applyStore(data);
   }
 
   input.addEventListener('input', () => scheduleRefresh(true, 90));
@@ -724,11 +795,8 @@ const page = `<!DOCTYPE html>
     if (!link) return;
     e.preventDefault();
     e.stopPropagation();
-    const cat = link.dataset.crumbCat || '';
-    const sub = link.dataset.crumbSub || '';
     input.value = '';
-    syncSelect('cat', cat);
-    if (sub) syncSelect('sub', sub);
+    syncSelect('cat', link.dataset.crumb || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
   grid.addEventListener('keydown', (e) => {
