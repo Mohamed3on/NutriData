@@ -47,6 +47,7 @@
     "test": "vitest run",
     "semantic-release": "semantic-release",
     "release": "semantic-release",
-    "tsc": "tsc"
+    "tsc": "tsc",
+    "refresh": "bun scripts/export-rewe-from-d1.ts && bun scripts/export-mercadona-prices-from-d1.ts && bun scripts/patch-mercadona-media.ts && bun scripts/build-protein-site.ts && cd ../mercadona-protein-site && wrangler deploy"
   }
 }

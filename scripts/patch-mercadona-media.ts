@@ -28,6 +28,7 @@ const SOURCE_HTML = `${import.meta.dir}/../mercadona-nutriscore.html`;
 const MERCADONA_CARDS = `${import.meta.dir}/../data/mercadona-cards.json`;
 const NUTRIENTS_BUNDLE = `${import.meta.dir}/../public/mercadona-nutrients.json`;
 const JSONL = `${import.meta.dir}/../data/mercadona-media.jsonl`;
+const D1_PRICES = `${import.meta.dir}/../data/mercadona-d1-prices.json`;
 const API = 'https://tienda.mercadona.es/api';
 const CONCURRENCY = 3;
 const RETRIES = 0; // resumable — let blocked requests drop fast and pick up next run
@@ -227,6 +228,20 @@ type Card = {
   proteinPer100Kcal: number;
 };
 const cards: Card[] = [];
+// Prices the extension has collected since the last API sweep, exported by
+// export-mercadona-prices-from-d1.ts. Optional: the file is absent on a clean
+// checkout, and the jsonl prices are used as-is. Only `price` is overlaid —
+// unit_size comes off the pack and doesn't drift — so the €/kg figure stays on
+// the single derivation in src/mercadonaPrice.ts.
+let d1Prices: Record<string, { price: number; at: string }> = {};
+try {
+  d1Prices = JSON.parse(await readFile(D1_PRICES, 'utf8'));
+  console.log(`loaded ${Object.keys(d1Prices).length} crowd-sourced prices from D1`);
+} catch {
+  console.log('no data/mercadona-d1-prices.json — using jsonl prices only');
+}
+let repriced = 0;
+
 // Adapt an ApiRow to the shared price decoder in src/mercadonaPrice.ts.
 const priceFields = (api: ApiRow): MercadonaPriceFields => ({
   price: api.price,
@@ -246,6 +261,11 @@ for (const id of ids) {
   const [protein, carbs, sugar, fat, calories, fiber, salt, satFat] = ocr;
   if (protein == null || calories == null || calories <= 0) continue;
   const ppc100 = protein / (calories / 100);
+  const fresher = d1Prices[id];
+  if (fresher && api.price !== fresher.price) {
+    api.price = fresher.price;
+    repriced++;
+  }
   const pricePerKg = mercadonaPricePerKg(priceFields(api));
   const ppc = pricePerKg != null ? (protein * 10) / pricePerKg : null;
   const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat, sugar) : null;
@@ -260,7 +280,7 @@ cards.sort((a, b) => {
   const vb = b.nutriScore ?? b.proteinPer100Kcal;
   return vb - va;
 });
-console.log(`built ${cards.length} cards  (skipped: no_api=${skippedNoApi} no_nutrients=${skippedNoNutr})`);
+console.log(`built ${cards.length} cards  (skipped: no_api=${skippedNoApi} no_nutrients=${skippedNoNutr}; repriced from D1=${repriced})`);
 
 // --- emit Mercadona cards for the unified site generator (build-protein-site.ts) ---
 const resize = (u: string) => `${u.split('?')[0]}?fit=crop&h=300&w=300`;

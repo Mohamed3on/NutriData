@@ -1,4 +1,4 @@
-import { NutrientInfo, PriceAndWeightInfo, Shop, Metrics } from '../types';
+import { NutrientInfo, PriceAndWeightInfo, Shop, Metrics, CollectPayload } from '../types';
 import React from 'react';
 import { createCustomSortSelectElement } from '../utils/createCustomSortSelect';
 import { isNutrientInfoComplete, parseNumeric } from '../utils';
@@ -28,6 +28,41 @@ function detectLang(): string {
 }
 
 const priceByProductId = new Map<string, PriceAndWeightInfo>();
+// What /collect wants besides the price. Filled opportunistically from whichever
+// API already answered for this product (listing bootstrap or product detail),
+// so buildCollectPayload stays synchronous.
+type ProductMeta = {
+  name: string | null;
+  image: string | null;
+  gtin: string | null;
+  categories: string[] | null;
+};
+const metaByProductId = new Map<string, ProductMeta>();
+
+// Categories arrive as strings on some endpoints and {name} objects on others,
+// and the product API nests the chain under `categories[0].categories`.
+function categoryNames(raw: any): string[] | null {
+  const out: string[] = [];
+  const walk = (node: any): void => {
+    if (!node) return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (typeof node === 'string') { out.push(node); return; }
+    if (typeof node.name === 'string') out.push(node.name);
+    if (node.categories) walk(node.categories);
+  };
+  walk(raw);
+  return out.length ? out.slice(0, 10) : null;
+}
+
+function rememberMeta(id: string, meta: Partial<ProductMeta>): void {
+  const prev = metaByProductId.get(id);
+  metaByProductId.set(id, {
+    name: meta.name ?? prev?.name ?? null,
+    image: meta.image ?? prev?.image ?? null,
+    gtin: meta.gtin ?? prev?.gtin ?? null,
+    categories: meta.categories ?? prev?.categories ?? null,
+  });
+}
 const inflightPriceFetch = new Map<string, Promise<PriceAndWeightInfo | null>>();
 
 // Bundled productId → compact nutrient array (~2000 Mercadona products, ~190KB).
@@ -85,6 +120,12 @@ async function fetchProductDetails(productId: string): Promise<{ ean: string | n
   const r = await fetch(`https://tienda.mercadona.es/api/products/${productId}/`);
   if (!r.ok) return null;
   const data = await r.json();
+  rememberMeta(productId, {
+    name: data?.display_name || null,
+    image: data?.photos?.[0]?.regular || data?.thumbnail || null,
+    gtin: data?.ean || null,
+    categories: categoryNames(data?.categories),
+  });
   return {
     ean: data?.ean || null,
     priceInfo: toPriceAndWeightInfo(data?.price_instructions, data?.display_name || ''),
@@ -127,6 +168,12 @@ function ingestProduct(map: ProductIdMap, p: any): void {
   if (!hash || !p?.id) return;
   const id = String(p.id);
   map.set(hash, id);
+  rememberMeta(id, {
+    name: p.display_name || null,
+    image: p.thumbnail || null,
+    gtin: p.ean || null,
+    categories: categoryNames(p.categories),
+  });
   if (p.price_instructions)
     priceByProductId.set(id, toPriceAndWeightInfo(p.price_instructions, p.display_name || ''));
 }
@@ -299,6 +346,34 @@ export const mercadonaShop: Shop = {
     const productId = extractProductId(doc);
     if (!productId) return {};
     return (await resolvePrice(productId)) || {};
+  },
+
+  // Contribute price to the shared index. Nutrition for Mercadona comes from the
+  // bundled OCR dump rather than the page, so it adds nothing the server hasn't
+  // got — the value here is the price, which is the half that actually drifts.
+  // Everything is read from caches the just-completed getPriceAndWeightInfo call
+  // already warmed, keeping this synchronous.
+  buildCollectPayload(doc: Document, nutrientInfo: NutrientInfo): CollectPayload | null {
+    const id = extractProductId(doc);
+    if (!id) return null;
+    const root = doc.documentElement.dataset.sourceUrl ? null : activeDetailRoot(doc);
+    const price = priceByProductId.get(id) ?? (root ? parsePriceFromDom(root) : null);
+    if (!price?.price) return null; // no price is nothing worth sending
+    const meta = metaByProductId.get(id);
+    return {
+      shop: 'mercadona',
+      shop_id: id,
+      name: meta?.name ?? null,
+      url: productUrl(id),
+      image_url: meta?.image ?? null,
+      categories: meta?.categories ?? null,
+      price: price.price ?? null,
+      price_per_unit: price.pricePerKg ?? null,
+      unit: null,
+      brand: null,
+      gtin: meta?.gtin ?? null,
+      nutritional_data: nutrientInfo,
+    };
   },
 
   // Mercadona resolves via JSON APIs; return a synthetic doc carrying the URL.
