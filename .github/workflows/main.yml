@@ -86,6 +86,9 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add manifest.json
+          # Each `run:` is its own shell, so the version read in the previous
+          # step isn't in scope here — it has to be read again.
+          version=$(node -p "require('./package.json').version")
           git commit -m "chore: update manifest version to $version [skip ci]" || echo "No changes to commit"
 
       - name: Push changes
