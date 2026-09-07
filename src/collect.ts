@@ -9,10 +9,13 @@ import { Shop, NutrientInfo, CollectPayload } from './types';
 // Performance: on category/search pages the extension parses many products in a
 // burst. Rather than a POST + two chrome.storage ops per product, we load the
 // dedup map once, queue payloads, and flush them in one batched request (the
-// /collect endpoint accepts arrays). sendBeacon makes the flush survive
+// /collect endpoint accepts arrays). fetch(keepalive) makes the flush survive
 // navigation away from the page.
 const ENDPOINT = 'https://protein-index.mohamed3on.com/collect';
-const STORE_KEY = 'nd_collected';
+// Bumped from 'nd_collected': every key the sendBeacon era wrote was marked
+// sent when nothing had actually been sent, so the old map would suppress
+// re-sends for up to a week on exactly the products that need them.
+const STORE_KEY = 'nd_collected2';
 const TTL_MS = 6 * 24 * 60 * 60 * 1000; // re-send a given product at most ~weekly
 const MAX_KEYS = 8000;
 const BATCH = 50;        // endpoint cap per request
@@ -36,12 +39,17 @@ async function ensureLoaded(): Promise<SentMap> {
 }
 
 function send(batch: CollectPayload[]): void {
-  const body = JSON.stringify(batch);
-  try {
-    // text/plain dodges a CORS preflight; sendBeacon survives unload.
-    if (navigator.sendBeacon && navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'text/plain;charset=UTF-8' }))) return;
-  } catch { /* fall through */ }
-  fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body, keepalive: true }).catch(() => {});
+  // text/plain dodges a CORS preflight; keepalive lets the request outlive the
+  // page, which is what sendBeacon used to be here for. Beacons are no good on
+  // rewe.de: sendBeacon() reports the send as queued and the request is then
+  // dropped before it leaves the browser, so trusting that return value meant
+  // silently sending nothing from every REWE page. fetch does reach /collect.
+  fetch(ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify(batch),
+    keepalive: true,
+  }).catch(() => {});
 }
 
 function flush(): void {
