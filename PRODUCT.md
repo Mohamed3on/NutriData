@@ -20,7 +20,7 @@ maintainer sanity-checking the data.
 
 An independent index that ranks ~16k REWE + ~2.4k Mercadona products by a
 protein-forward NutriScore (geometric mean of protein-per-100kcal and
-protein-per-€, lifted by fiber, dragged by saturated fat). Success = a shopper
+protein-per-€, lifted by fiber, dragged by saturated fat and sugar). Success = a shopper
 finds the best products in a category in seconds and trusts the ranking.
 
 ## Brand Personality
