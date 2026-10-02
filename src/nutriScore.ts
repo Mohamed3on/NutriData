@@ -29,3 +29,20 @@ export function computeNutriScore(
     sugarPenalty
   );
 }
+
+// Fiber is voluntary on EU labels — half the REWE catalogue leaves it out — so
+// a missing value is unknown, not zero; reading it as zero cost those products
+// the fiber bonus. The label's energy must be computed with fixed factors (EU
+// 1169/2011 Annex XIV: protein and carbs 4 kcal/g, fat 9, fiber 2), so the
+// energy the other macros don't account for is the fiber. The first 3 kcal of
+// that gap are rounding (macros ≥10 g are declared in whole grams — ±2 kcal
+// from protein alone), which would otherwise hand lean meat and quark the bonus.
+export function fiberFromEnergy(
+  protein: number,
+  carbs: number | null | undefined,
+  fat: number | null | undefined,
+  calories: number | null | undefined
+): number | null {
+  if (carbs == null || fat == null || calories == null) return null;
+  return Math.max(0, (calories - 4 * protein - 4 * carbs - 9 * fat - 3) / 2);
+}

@@ -20,7 +20,7 @@
 // and re-running this script — the site stays identical.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { computeNutriScore } from '../src/nutriScore';
+import { computeNutriScore, fiberFromEnergy } from '../src/nutriScore';
 
 const REPO = `${import.meta.dir}/..`;
 const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site/public`;
@@ -110,7 +110,9 @@ for (const p of reweProducts) {
   if (isConcentrate) skipConcentrate++;
   const ppc = ppu && ppu > 0 && !isConcentrate ? (protein * 10) / ppu : null;
 
-  const nutriScore = ppc != null && isFinite(ppc100) ? computeNutriScore(ppc100, ppc, fiber, satFat, sugar) : null;
+  const nutriScore = ppc != null && isFinite(ppc100)
+    ? computeNutriScore(ppc100, ppc, fiber ?? fiberFromEnergy(protein, carbs, fat, calories), satFat, sugar)
+    : null;
 
   // REWE categories are a 3-4 level path (dept > … > leaf). Keep every level:
   // the site's category filter is a tree, so mid-levels like "Eiscreme &

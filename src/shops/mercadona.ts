@@ -83,7 +83,8 @@ function loadNutrientsMap(): Promise<Record<string, (number | null)[]> | null> {
 function compactToNutrientInfo(compact: (number | null)[]): NutrientInfo {
   const [p, c, su, f, k, fi, sa, sf] = compact;
   // EU labels omit nutrients deemed "negligible" — treat null as 0 to surface
-  // the product instead of dropping it.
+  // the product instead of dropping it. Fiber stays unset: it's voluntary, so a
+  // gap means unknown and the score estimates it (fiberFromEnergy).
   const fmt = (v: number | null) => (parseNumeric(v) ?? 0).toFixed(1);
   return {
     protein: fmt(p),
@@ -91,7 +92,7 @@ function compactToNutrientInfo(compact: (number | null)[]): NutrientInfo {
     sugar: fmt(su),
     fat: fmt(f),
     calories: fmt(k),
-    fiber: fmt(fi),
+    fiber: fi == null ? undefined : fmt(fi),
     salt: fmt(sa),
     saturatedFat: fmt(sf),
   };

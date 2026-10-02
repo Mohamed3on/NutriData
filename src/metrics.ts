@@ -1,5 +1,5 @@
 import { Metrics, NutrientInfo, PriceAndWeightInfo } from './types';
-import { computeNutriScore } from './nutriScore';
+import { computeNutriScore, fiberFromEnergy } from './nutriScore';
 
 export function calculateMetrics(
   nutrientInfo: NutrientInfo,
@@ -39,7 +39,9 @@ export function calculateMetrics(
     const ppc = parseFloat(metrics.proteinPerCurrency);
     const ppc100 = parseFloat(metrics.proteinPer100Calories);
 
-    const fiber = nutrientInfo.fiber ? parseFloat(nutrientInfo.fiber.replace(/[^\d.-]/g, '')) : 0;
+    const fiber = nutrientInfo.fiber
+      ? parseFloat(nutrientInfo.fiber.replace(/[^\d.-]/g, ''))
+      : fiberFromEnergy(protein, carbs, parseFloat(nutrientInfo.fat), calories);
     const satFat = nutrientInfo.saturatedFat
       ? parseFloat(nutrientInfo.saturatedFat.replace(/[^\d.-]/g, ''))
       : 0;
