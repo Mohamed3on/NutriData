@@ -6,9 +6,6 @@
   "permissions": [
     "storage"
   ],
-  "host_permissions": [
-    "https://*.algolia.net/*"
-  ],
   "web_accessible_resources": [
     {
       "resources": [
