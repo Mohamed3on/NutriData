@@ -102,6 +102,15 @@ describe('amazonShop', () => {
       const result = await amazonShop.getPriceAndWeightInfo(document);
       expect(result.pricePerKg).toBeCloseTo(4.67, 2);
     });
+
+    it('extracts price per kg when the currency follows the number', async () => {
+      document.body.innerHTML = `
+        <span class="aok-relative"><span class="a-size-mini a-color-base aok-align-center a-text-normal">(<span class="a-price a-text-price" data-a-size="mini" data-a-color="base"><span class="a-offscreen">4,42€</span><span aria-hidden="true">4,42€</span></span> / kg)</span></span>
+      `;
+
+      const result = await amazonShop.getPriceAndWeightInfo(document);
+      expect(result.pricePerKg).toBeCloseTo(4.42, 2);
+    });
   });
 
   describe('getNutrientInfo', () => {
@@ -128,6 +137,62 @@ describe('amazonShop', () => {
       expect(nutrientInfo?.protein).toBe('0.1 g');
       expect(nutrientInfo?.calories).toBe('418.73 kcal');
       expect(nutrientInfo?.carbs).toBe('8.3 g');
+    });
+
+    // Amazon's EU nutrition-facts card (Arla Skyr, B014RK1FF2), as served in
+    // each site language; classes stripped.
+    const expected = {
+      calories: '63 kcal',
+      fat: '0.2 g',
+      saturatedFat: '0.1 g',
+      carbs: '4 g',
+      sugar: '4 g',
+      protein: '11 g',
+      salt: '0.14 g',
+    };
+
+    it('reads the nutrition-facts card in English', async () => {
+      const dom = new JSDOM(`
+        <table id="nic-eu-nutrition-facts-nutrients"><tbody>
+          <tr id="nic-eu-nutrition-facts-energy"><td><span>Energy</span></td><td><span>264kJ / 63kcal</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Fat</span></td><td><span>0.2g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>of which</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Saturates</span></td><td><span>0.1g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>of which</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Carbohydrates</span></td><td><span>4g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>of which</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Sugars</span></td><td><span>4g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>of which</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Protein</span></td><td><span>11g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>of which</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Salt</span></td><td><span>0.14g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>of which</span></td></tr>
+        </tbody></table>
+      `);
+
+      expect(await amazonShop.getNutrientInfo(dom.window.document)).toEqual(expected);
+    });
+
+    it('reads the nutrition-facts card in German', async () => {
+      const dom = new JSDOM(`
+        <table id="nic-eu-nutrition-facts-nutrients"><tbody>
+          <tr id="nic-eu-nutrition-facts-energy"><td><span>Energie</span></td><td><span>264kJ / 63kcal</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Fett</span></td><td><span>0,2g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>davon</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Gesättigte Fettsäuren</span></td><td><span>0,1g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>davon</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Kohlenhydrate</span></td><td><span>4g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>davon</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Zucker</span></td><td><span>4g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>davon</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Protein</span></td><td><span>11g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>davon</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-macronutrients"><td><span>— </span><span>Salz</span></td><td><span>0,14g</span></td></tr>
+          <tr id="nic-eu-nutrition-facts-nutrients-of-which"><td><span>davon</span></td></tr>
+        </tbody></table>
+      `);
+
+      expect(await amazonShop.getNutrientInfo(dom.window.document)).toEqual(expected);
     });
   });
 });

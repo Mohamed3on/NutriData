@@ -11,12 +11,53 @@ const NUTRIENT_LABELS: Partial<Record<keyof NutrientInfo, string>> = {
   fiber: 'Fibre',
 };
 
+// Grocery pages now carry an EU nutrition-facts card instead of the technical
+// details table, labelled in the site language: rows read "— Fat | 0.2g", with
+// "of which" / "davon" spacer rows between them.
+const NUTRITION_FACTS_LABELS: Record<string, keyof NutrientInfo> = {
+  fat: 'fat',
+  fett: 'fat',
+  saturates: 'saturatedFat',
+  'gesättigte fettsäuren': 'saturatedFat',
+  carbohydrate: 'carbs',
+  carbohydrates: 'carbs',
+  kohlenhydrate: 'carbs',
+  sugars: 'sugar',
+  zucker: 'sugar',
+  fibre: 'fiber',
+  ballaststoffe: 'fiber',
+  protein: 'protein',
+  eiweiß: 'protein',
+  salt: 'salt',
+  salz: 'salt',
+};
+
+function parseNutritionFacts(doc: Document): Partial<NutrientInfo> {
+  const nutrientInfo: Partial<NutrientInfo> = {};
+  const kcal = doc
+    .querySelector('#nic-eu-nutrition-facts-energy')
+    ?.textContent?.match(/(\d+(?:[,.]\d+)?)\s*kcal/i);
+  if (kcal) nutrientInfo.calories = `${kcal[1].replace(',', '.')} kcal`;
+
+  doc.querySelectorAll('#nic-eu-nutrition-facts-nutrients tr').forEach((row) => {
+    const [labelCell, valueCell] = row.querySelectorAll('td');
+    const label = labelCell?.textContent?.replace(/^[\s—-]+/, '').trim().toLowerCase();
+    const nutrientKey = label ? NUTRITION_FACTS_LABELS[label] : undefined;
+    const match = valueCell?.textContent?.trim().match(/^<?\s*(\d+(?:[,.]\d+)?)\s*g/i);
+    if (nutrientKey && match) nutrientInfo[nutrientKey] = `${match[1].replace(',', '.')} g`;
+  });
+  return nutrientInfo;
+}
+
 export const amazonShop: Shop = {
   name: 'amazon',
   getCurrency(url?: string): '€' | '£' {
     return url?.includes('amazon.de') ? '€' : '£';
   },
   async getNutrientInfo(doc: Document): Promise<NutrientInfo> {
+    const facts = parseNutritionFacts(doc);
+    if (Object.keys(facts).length) return facts as NutrientInfo;
+
     const table = doc.querySelector('#productDetails_techSpec_section_2');
     const nutrientInfo: Partial<NutrientInfo> = {};
 
@@ -62,7 +103,8 @@ export const amazonShop: Shop = {
 
     if (alternativeElement) {
       const pricePerUnitText = alternativeElement.textContent?.trim() || '';
-      const match = pricePerUnitText.match(/([\d,.]+)\s*\/\s*([\d,.]+)?\s*([a-zA-Z]+)/);
+      // "€29.16 / kg" (UK style) or "4,42€ / kg" (amazon.de puts the € after).
+      const match = pricePerUnitText.match(/([\d,.]+)\s*[€£]?\s*\/\s*([\d,.]+)?\s*([a-zA-Z]+)/);
 
       if (match) {
         const [, value, amount, unit] = match;
