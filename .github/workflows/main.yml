@@ -35,19 +35,6 @@ jobs:
           pnpm run build:chrome
           pnpm run build:firefox
 
-      - name: Archive builds
-        run: |
-          cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*'
-          cd ../firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*'
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: extension-builds
-          path: |
-            build-chrome.zip
-            build-firefox.zip
-
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -97,10 +84,14 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ github.ref }}
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: extension-builds
+      # Built here rather than in the build job, which runs before the release
+      # bumps the version: zips built there carried the previous version.
+      - name: Build release zips
+        run: |
+          pnpm run build:chrome
+          pnpm run build:firefox
+          (cd dist/chrome && zip -r -FS ../../build-chrome.zip . --exclude '*.git*')
+          (cd dist/firefox && zip -r -FS ../../build-firefox.zip . --exclude '*.git*')
 
       - name: Upload release assets
         env:
