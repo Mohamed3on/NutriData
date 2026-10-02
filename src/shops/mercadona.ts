@@ -11,20 +11,28 @@ import { removeMetricsElement } from '../domUtils';
 
 declare const chrome: any;
 
-// Algolia keys are baked into Mercadona's frontend bundle (public, search-only).
-const ALGOLIA_APP_ID = '7UZJKL1DJ0';
-const ALGOLIA_API_KEY = '9d8f2e39e90df472b4f2e559a116fe17';
-const WAREHOUSE = 'vlc1';
+const DEFAULT_WAREHOUSE = 'vlc1';
 const DEFAULT_LANG = 'es';
 const INJECTED_LINK_CLASS = 'nutridata-mercadona-link';
 const PRODUCT_PATH = /\/product\/(\d+)/;
 const productUrl = (id: string) => `https://tienda.mercadona.es/product/${id}/`;
 
-// Mercadona's Algolia indices are language-scoped (`products_prod_<wh>_<lang>`).
-// Mirror what the frontend uses — read it off `<html lang>`.
+// Listing lookups must ask for what the frontend shows: its language (search
+// results differ per language) — read it off `<html lang>`...
 function detectLang(): string {
   const lang = (document.documentElement.lang || DEFAULT_LANG).trim().toLowerCase();
   return lang.split('-')[0] || DEFAULT_LANG;
+}
+
+// ...and the warehouse the user's postcode maps to, which the frontend keeps in
+// the `__mo_da` cookie as {"warehouse":"alc1","postalCode":"03016"}.
+function detectWarehouse(): string {
+  try {
+    const raw = document.cookie.match(/(?:^|; )__mo_da=([^;]*)/)?.[1];
+    return (raw && JSON.parse(decodeURIComponent(raw)).warehouse) || DEFAULT_WAREHOUSE;
+  } catch {
+    return DEFAULT_WAREHOUSE;
+  }
 }
 
 const priceByProductId = new Map<string, PriceAndWeightInfo>();
@@ -157,7 +165,7 @@ async function resolvePrice(productId: string): Promise<PriceAndWeightInfo | nul
   return pending;
 }
 
-// --- Listing bootstrap (Algolia for search, category API for category pages) ---
+// --- Listing bootstrap (search API for search, category API for category pages) ---
 type ProductIdMap = Map<string, string>;
 
 function extractThumbnailHash(url: string | null | undefined): string | null {
@@ -179,18 +187,13 @@ function ingestProduct(map: ProductIdMap, p: any): void {
     priceByProductId.set(id, toPriceAndWeightInfo(p.price_instructions, p.display_name || ''));
 }
 
+// The same endpoint the frontend's search calls (it replaced querying Algolia
+// directly). One page holds every result: the API caps a search at 100 hits.
 async function fetchSearchIds(query: string): Promise<ProductIdMap> {
   const map: ProductIdMap = new Map();
-  const lang = detectLang();
-  const url =
-    `https://${ALGOLIA_APP_ID.toLowerCase()}-dsn.algolia.net/1/indexes/products_prod_${WAREHOUSE}_${lang}/query` +
-    `?x-algolia-agent=NutriData&x-algolia-api-key=${ALGOLIA_API_KEY}&x-algolia-application-id=${ALGOLIA_APP_ID}`;
+  const params = new URLSearchParams({ q: query, wh: detectWarehouse(), lang: detectLang() });
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'text/plain' },
-      body: JSON.stringify({ query, hitsPerPage: 100 }),
-    });
+    const res = await fetch(`https://tornillos.mercadona.es/search?${params}`);
     if (!res.ok) return map;
     const data = await res.json();
     for (const hit of data.hits || []) ingestProduct(map, hit);
@@ -202,7 +205,7 @@ async function fetchCategoryIds(categoryId: string): Promise<ProductIdMap> {
   const map: ProductIdMap = new Map();
   try {
     const res = await fetch(
-      `https://tienda.mercadona.es/api/categories/${categoryId}/?lang=${detectLang()}&wh=${WAREHOUSE}`
+      `https://tienda.mercadona.es/api/categories/${categoryId}/?lang=${detectLang()}&wh=${detectWarehouse()}`
     );
     if (!res.ok) return map;
     const walk = (node: any): void => {
