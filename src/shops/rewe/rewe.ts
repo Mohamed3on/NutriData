@@ -3,18 +3,21 @@ import { createCustomSortSelectElement } from '../../utils/createCustomSortSelec
 import { parseNumeric } from '../../utils';
 import { ProductData } from './ProductData';
 
-const getProductData = (doc: Document): ProductData | null => {
+const getPropstore = (
+  doc: Document
+): { productData?: ProductData; metaData?: { marketCode?: string } } | null => {
   const propstoreElement = doc.querySelector('script[id^="pdpr-propstore"]');
   if (propstoreElement) {
     try {
-      const propstoreContent = JSON.parse(propstoreElement.textContent || '');
-      return propstoreContent.productData;
+      return JSON.parse(propstoreElement.textContent || '');
     } catch (error) {
       console.error('Error parsing propstore content:', error);
     }
   }
   return null;
 };
+const getProductData = (doc: Document): ProductData | null =>
+  getPropstore(doc)?.productData ?? null;
 
 // Full category path (incl. the leaf, e.g. "Mozzarella") from the product
 // page breadcrumb. The propstore `categories` can be shallower; the breadcrumb
@@ -130,7 +133,8 @@ export const reweShop: Shop = {
   },
 
   buildCollectPayload(doc: Document, nutrientInfo: NutrientInfo): CollectPayload | null {
-    const data = getProductData(doc);
+    const store = getPropstore(doc);
+    const data = store?.productData;
     if (!data) return null;
     const id = data.productId || data.articleId;
     if (!id) return null;
@@ -165,6 +169,10 @@ export const reweShop: Shop = {
       brand: data.brandKey || data.manufacturer?.name || null,
       gtin: data.gtin || null,
       nutritional_data: nutrientInfo,
+      // The user's selected market lives in metaData. productData.marketCode is
+      // whichever market REWE pulled the product from when the user's lacks it.
+      market: store?.metaData?.marketCode || null,
+      buyable: typeof data.isBuyable === 'boolean' ? data.isBuyable : null,
     };
   },
 

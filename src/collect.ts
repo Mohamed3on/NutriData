@@ -15,7 +15,11 @@ const ENDPOINT = 'https://protein-index.mohamed3on.com/collect';
 // Bumped from 'nd_collected': every key the sendBeacon era wrote was marked
 // sent when nothing had actually been sent, so the old map would suppress
 // re-sends for up to a week on exactly the products that need them.
-const STORE_KEY = 'nd_collected2';
+// Bumped again (→3) when payloads gained market availability, so products sent
+// in the last week get re-sent with it instead of waiting out the TTL.
+const STORE_KEY = 'nd_collected3';
+// The user's REWE market, for the options page's link to the protein index.
+export const MARKET_KEY = 'nd_rewe_market';
 const TTL_MS = 6 * 24 * 60 * 60 * 1000; // re-send a given product at most ~weekly
 const MAX_KEYS = 8000;
 const BATCH = 50;        // endpoint cap per request
@@ -26,6 +30,7 @@ type SentMap = Record<string, number>;
 let sentMap: SentMap | null = null; // dedup map, loaded once per page
 const queue: CollectPayload[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | 0 = 0;
+let lastMarket: string | null = null;
 
 async function ensureLoaded(): Promise<SentMap> {
   if (!sentMap) {
@@ -38,7 +43,7 @@ async function ensureLoaded(): Promise<SentMap> {
   return sentMap;
 }
 
-function send(batch: CollectPayload[]): void {
+function send(batch: (CollectPayload | { shop: string; shop_id: string; gone: true })[]): void {
   // text/plain dodges a CORS preflight; keepalive lets the request outlive the
   // page, which is what sendBeacon used to be here for. Beacons are no good on
   // rewe.de: sendBeacon() reports the send as queued and the request is then
@@ -80,6 +85,10 @@ export async function maybeCollect(shop: Shop, doc: Document, nutrientInfo: Nutr
     if (!shop.buildCollectPayload) return;
     const payload = shop.buildCollectPayload(doc, nutrientInfo);
     if (!payload?.shop_id) return;
+    if (payload.market && payload.market !== lastMarket) {
+      lastMarket = payload.market;
+      chrome.storage.local.set({ [MARKET_KEY]: payload.market }).catch(() => {});
+    }
     const map = await ensureLoaded();
     const key = `${payload.shop}:${payload.shop_id}`;
     const now = Date.now();
@@ -90,4 +99,16 @@ export async function maybeCollect(shop: Shop, doc: Document, nutrientInfo: Nutr
   } catch {
     // Collection must never interfere with rendering the nutrition card.
   }
+}
+
+// A REWE product page that 404s is a delisted product: tell the index to drop
+// it. The Worker only flags the row, and any later sighting of the product
+// clears the flag, so a wrong report can't delete anything for good.
+export function maybeReportGone(): void {
+  const nav = performance.getEntriesByType('navigation')[0] as
+    | (PerformanceNavigationTiming & { responseStatus?: number })
+    | undefined;
+  if (nav?.responseStatus !== 404) return;
+  const id = location.pathname.match(/\/p\/[^/]+\/(\d+)/)?.[1];
+  if (id) send([{ shop: 'rewe', shop_id: id, gone: true }]);
 }

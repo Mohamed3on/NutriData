@@ -26,6 +26,7 @@ const REPO = `${import.meta.dir}/..`;
 const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site/public`;
 const MERCADONA_CARDS = `${REPO}/data/mercadona-cards.json`;
 const REWE_PRODUCTS = `${REPO}/data/rewe-products.json`;
+const REWE_UNBUYABLE = `${REPO}/data/rewe-unbuyable.json`; // { [market]: [id, …] }
 const DEFAULT_STORE = 'rewe';
 
 const norm = (s: string) =>
@@ -179,12 +180,15 @@ function withPathTable(cards: Card[]) {
 }
 
 // External JSON files, fetched at runtime — no <script> context to escape for.
-const dataJson = (cards: Card[]) => JSON.stringify(withPathTable(cards));
+const dataJson = (cards: Card[], extra = {}) => JSON.stringify({ ...withPathTable(cards), ...extra });
 // The site's public/ holds only generated files and isn't tracked, so a fresh
 // clone (CI included) has no directory to write into.
 await mkdir(SITE_DIR, { recursive: true });
 await writeFile(`${SITE_DIR}/mercadona.json`, dataJson(mercadonaCards));
-await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards));
+// ub: products each REWE market can't sell; the page hides them for a visitor
+// whose market (?market=…, remembered in localStorage) is listed.
+const ub = JSON.parse(await readFile(REWE_UNBUYABLE, 'utf8').catch(() => '{}'));
+await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards, { ub }));
 
 // ---------- per-store chrome (server-injected config) ----------
 const STORES = {
@@ -412,6 +416,9 @@ const page = `<!DOCTYPE html>
   const PAGE_SIZE = 60;
   const params = new URLSearchParams(location.search);
   let store = STORES[params.get('store')] ? params.get('store') : '${DEFAULT_STORE}';
+  // The visitor's REWE market (the extension's options page links here with it).
+  if (/^\\d{1,12}$/.test(params.get('market') || '')) localStorage.setItem('nd-market', params.get('market'));
+  const MARKET = localStorage.getItem('nd-market');
 
   const SEP = '\\u001f'; // joins a category path into one comparable key
 
@@ -756,7 +763,10 @@ const page = `<!DOCTYPE html>
 
   function applyStore(payload) {
     PATHS = payload.paths || [];
-    DATA = payload.cards || [];
+    const ub = new Set((payload.ub || {})[MARKET] || []);
+    DATA = (payload.cards || []).filter((c) => !ub.has(c.id));
+    const hidden = (payload.cards || []).length - DATA.length;
+    if (hidden) blurbEl.insertAdjacentHTML('beforeend', ' Hiding ' + hidden.toLocaleString() + (hidden === 1 ? ' product' : ' products') + ' your market can’t sell.');
     // reset filters for the new store
     input.value = '';
     sortValue = 'score';

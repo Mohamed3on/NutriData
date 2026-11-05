@@ -5,7 +5,7 @@ import './index.css';
 import { detectShop } from './shops/detectShop';
 import { getCachedSettings, getCurrentShopKey, loadSettings } from './settings';
 import { debounce } from './utils/debounce';
-import { maybeCollect } from './collect';
+import { maybeCollect, maybeReportGone } from './collect';
 
 const INJECTED_SIG_ATTR = 'data-nutridata-sig';
 
@@ -54,6 +54,8 @@ function runDisplayInfo() {
 // Trailing debounce: fire once the DOM settles after a mutation burst.
 // Handles initial render, SPA re-renders, and in-place modal swaps.
 loadSettings().then(() => {
+  if (detectShop()?.name === 'rewe' && getCachedSettings()?.enabledShops[getCurrentShopKey()])
+    maybeReportGone();
   const schedule = debounce(runDisplayInfo, 150);
   new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
   schedule();

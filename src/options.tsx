@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ExtensionSettings, defaultSettings, getSettings, saveSettings } from './settings';
+import { MARKET_KEY } from './collect';
 import './index.css';
 
 function OptionsApp() {
   const [settings, setSettings] = useState<ExtensionSettings>(defaultSettings);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
+  const [market, setMarket] = useState<string | null>(null);
+
   useEffect(() => {
     getSettings().then(setSettings);
+    chrome.storage.local.get(MARKET_KEY).then((r) => setMarket((r[MARKET_KEY] as string) || null));
   }, []);
 
   const toggleShop = (shop: keyof ExtensionSettings['enabledShops']) => {
@@ -113,6 +117,28 @@ function OptionsApp() {
                 Disable to hide NutriData cards and custom sorting in product search/listing pages.
               </p>
             </div>
+          </section>
+
+          <section className='bg-card text-card-foreground border rounded-lg p-5 shadow-sm'>
+            <h2 className='text-lg font-medium'>Protein index</h2>
+            <p className='text-sm text-muted-foreground mt-1'>
+              {market ? (
+                <>
+                  <a
+                    className='underline underline-offset-2'
+                    href={`https://protein-index.mohamed3on.com/?market=${market}`}
+                    target='_blank'
+                    rel='noopener'
+                  >
+                    Open the REWE protein index
+                  </a>{' '}
+                  without products your market ({market}) can't sell. The index remembers it
+                  after this visit.
+                </>
+              ) : (
+                'Open any REWE product page and NutriData learns your market, so the protein index can hide products it can’t sell.'
+              )}
+            </p>
           </section>
 
           <div className='flex items-center gap-3'>

@@ -45,6 +45,9 @@ export interface CollectPayload {
   brand: string | null;
   gtin: string | null;
   nutritional_data: NutrientInfo;
+  // REWE: can the product be ordered at the user's selected market?
+  market?: string | null;
+  buyable?: boolean | null;
 }
 
 export interface Shop {
