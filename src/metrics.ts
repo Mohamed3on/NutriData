@@ -19,6 +19,7 @@ export function calculateMetrics(
 
   if (pricePerKg || (price > 0 && weight)) {
     metrics.proteinPerCurrency = calculateProteinPerCurrency(protein, price, weight, pricePerKg);
+    metrics.pricePerKg = (pricePerKg || (price * 1000) / weight!).toFixed(2);
   }
 
   if (!isNaN(carbs)) {

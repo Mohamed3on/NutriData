@@ -20,6 +20,8 @@ export interface Metrics {
   proteinToCarbRatio: string;
   proteinPer100Calories: string;
   nutriScore: string;
+  // Not displayed — sort tie-breaker for low-score products (see LOW_SCORE).
+  pricePerKg?: string;
 }
 
 export interface ColorThresholds {

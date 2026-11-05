@@ -11,6 +11,11 @@
 // 4 kcal/g it is *less* calorie-dense than fat at 9, so swapping fat for sugar
 // used to raise the score. The first 5 g/100g are free so that dairy lactose
 // and whole fruit aren't punished for sugar nobody added.
+// Below this a score only says "no meaningful protein" — butter's 0.1 vs 0.2 is
+// label rounding (0.7 vs 1.0 g protein), not a real difference. Rankings order
+// such products by €/kg instead, cheapest first.
+export const LOW_SCORE = 0.5;
+
 export function computeNutriScore(
   proteinPer100Kcal: number,
   proteinPerEuro: number,

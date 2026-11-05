@@ -6,6 +6,7 @@ import { detectShop } from './shops/detectShop';
 import { createRoot } from 'react-dom/client';
 import { isShopEnabled, isAutoSortEnabled, loadSettings } from './settings';
 import { parseNumeric } from './utils';
+import { LOW_SCORE } from './nutriScore';
 import { debounce } from './utils/debounce';
 
 let lastSort: { metric: keyof Metrics | keyof NutrientInfo; ascending: boolean } | null = null;
@@ -41,17 +42,22 @@ function sortProductList(
     if (direct) containers.add(direct as HTMLElement);
   }
 
-  const ranked = Array.from(containers, (container) => ({
-    container,
-    value: parseNumeric(
-      container.querySelector(`.nutri-data-metrics`)?.getAttribute(`data-${metric}`)
-    ),
-  }));
+  const ranked = Array.from(containers, (container) => {
+    const el = container.querySelector(`.nutri-data-metrics`);
+    return {
+      container,
+      value: parseNumeric(el?.getAttribute(`data-${metric}`)),
+      perKg: parseNumeric(el?.getAttribute('data-pricePerKg')) ?? Infinity,
+    };
+  });
 
   ranked.sort((a, b) => {
     if (a.value === null && b.value === null) return 0;
     if (a.value === null) return 1;
     if (b.value === null) return -1;
+    // Near-zero NutriScores are noise (all butters are 0.1–0.2): cheapest €/kg first.
+    if (metric === 'nutriScore' && a.value < LOW_SCORE && b.value < LOW_SCORE)
+      return a.perKg - b.perKg || 0;
     return ascending ? a.value - b.value : b.value - a.value;
   });
 

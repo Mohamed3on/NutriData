@@ -20,7 +20,7 @@
 // and re-running this script — the site stays identical.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { computeNutriScore, fiberFromEnergy } from '../src/nutriScore';
+import { computeNutriScore, fiberFromEnergy, LOW_SCORE } from '../src/nutriScore';
 
 const REPO = `${import.meta.dir}/..`;
 const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site/public`;
@@ -144,9 +144,13 @@ for (const p of reweProducts) {
 // Pre-sort both stores exactly as the client's default 'score' sort would
 // (NutriScore desc, no-score items last, tie-broken by protein-per-100kcal) so
 // the client can skip re-sorting 16k rows on every keystroke for the default.
+// Scores under LOW_SCORE are noise (every butter is 0.0–0.2), so those rank by
+// €/kg, cheapest first — the same rule as the extension's on-page sort.
 const byScore = (a: Card, b: Card) => {
   const sa = typeof a.ns === 'number' ? a.ns : -Infinity;
   const sb = typeof b.ns === 'number' ? b.ns : -Infinity;
+  if (sa > -Infinity && sb > -Infinity && sa < LOW_SCORE && sb < LOW_SCORE)
+    return ((a.kg as number) ?? Infinity) - ((b.kg as number) ?? Infinity) || 0;
   if (sa !== sb) return sb - sa;
   return (typeof b.pk === 'number' ? b.pk : -Infinity) - (typeof a.pk === 'number' ? a.pk : -Infinity);
 };

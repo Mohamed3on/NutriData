@@ -47,7 +47,7 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({ metrics, nutrientInfo 
                   <span
                     style={{
                       color: getColorForValue(
-                        metrics[key],
+                        metrics[key]!,
                         COLOR_THRESHOLDS[key as keyof typeof COLOR_THRESHOLDS]
                       ),
                     }}
