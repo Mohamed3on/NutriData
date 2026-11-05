@@ -19,16 +19,29 @@ const getPropstore = (
 const getProductData = (doc: Document): ProductData | null =>
   getPropstore(doc)?.productData ?? null;
 
-// Full category path (incl. the leaf, e.g. "Mozzarella") from the product
-// page breadcrumb. The propstore `categories` can be shallower; the breadcrumb
-// is the authoritative path.
+// Full category path (incl. the leaf, e.g. "Mozzarella") from the page's
+// schema.org BreadcrumbList. Not the visible breadcrumb: browser translation
+// rewrites its text ("Shop Homepage > Cheese, eggs & dairy"), which filed
+// products under an English duplicate tree, while script contents stay German.
+// (The propstore `categories` is only an id, e.g. ["186"].)
 const getBreadcrumbCategories = (doc: Document): string[] => {
-  const links = doc.querySelectorAll(
-    '.plr-ProductPageBreadcrumbs__List a.plr-ProductPageBreadcrumbs__Link'
-  );
-  return Array.from(links)
-    .map((a) => (a.textContent || '').trim())
-    .filter((t) => t && t.toLowerCase() !== 'shop startseite');
+  const decode = doc.createElement('textarea'); // names arrive HTML-escaped ("&amp;")
+  for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      const ld = JSON.parse(script.textContent || '');
+      if (ld['@type'] !== 'BreadcrumbList') continue;
+      return (ld.itemListElement as { position: number; item?: { name?: string } }[])
+        .sort((a, b) => a.position - b.position)
+        .map((el) => {
+          decode.innerHTML = el.item?.name || '';
+          return decode.value.trim();
+        })
+        .filter(Boolean);
+    } catch {
+      // not JSON we understand — try the next block
+    }
+  }
+  return [];
 };
 
 const getRewePriceAndWeightInfo = (data: ProductData): PriceAndWeightInfo => {
@@ -150,11 +163,8 @@ export const reweShop: Shop = {
     }
 
     const breadcrumb = getBreadcrumbCategories(doc);
-    const categories = breadcrumb.length
-      ? breadcrumb
-      : Array.isArray(data.categories) && data.categories.length
-        ? data.categories
-        : null;
+    // null keeps the stored path (the Worker COALESCEs) when the page has none.
+    const categories = breadcrumb.length ? breadcrumb : null;
 
     return {
       shop: 'rewe',
