@@ -14,7 +14,6 @@ import { toNutriArray } from './lib/rewe-dump';
 
 const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site`;
 const OUT = `${import.meta.dir}/../data/rewe-products.json`;
-const UNBUYABLE_OUT = `${import.meta.dir}/../data/rewe-unbuyable.json`;
 
 const SQL =
   'SELECT shop_id, name, url, image_url, categories, price, price_per_unit, unit, brand, gtin, nutritional_data ' +
@@ -51,11 +50,3 @@ for (const row of rows) {
 writeFileSync(OUT, JSON.stringify(products));
 console.log(`exported ${products.length} REWE products from D1 -> ${OUT}  (skipped no-nutrition=${noNutri})`);
 
-// Products each market can't sell, as reported by the extension from that
-// market's product pages: { [market]: [shop_id, …] }. The site hides them for a
-// visitor who has picked that market.
-const unbuyable: Record<string, string[]> = {};
-for (const r of await query("SELECT market, shop_id FROM availability WHERE shop='rewe' AND buyable=0"))
-  (unbuyable[r.market] ??= []).push(r.shop_id);
-writeFileSync(UNBUYABLE_OUT, JSON.stringify(unbuyable));
-console.log(`exported unbuyable lists for ${Object.keys(unbuyable).length} markets -> ${UNBUYABLE_OUT}`);

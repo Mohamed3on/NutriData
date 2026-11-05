@@ -26,7 +26,6 @@ const REPO = `${import.meta.dir}/..`;
 const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site/public`;
 const MERCADONA_CARDS = `${REPO}/data/mercadona-cards.json`;
 const REWE_PRODUCTS = `${REPO}/data/rewe-products.json`;
-const REWE_UNBUYABLE = `${REPO}/data/rewe-unbuyable.json`; // { [market]: [id, …] }
 const DEFAULT_STORE = 'rewe';
 
 const norm = (s: string) =>
@@ -180,15 +179,12 @@ function withPathTable(cards: Card[]) {
 }
 
 // External JSON files, fetched at runtime — no <script> context to escape for.
-const dataJson = (cards: Card[], extra = {}) => JSON.stringify({ ...withPathTable(cards), ...extra });
+const dataJson = (cards: Card[]) => JSON.stringify(withPathTable(cards));
 // The site's public/ holds only generated files and isn't tracked, so a fresh
 // clone (CI included) has no directory to write into.
 await mkdir(SITE_DIR, { recursive: true });
 await writeFile(`${SITE_DIR}/mercadona.json`, dataJson(mercadonaCards));
-// ub: products each REWE market can't sell; the page hides them for a visitor
-// whose market (?market=…, remembered in localStorage) is listed.
-const ub = JSON.parse(await readFile(REWE_UNBUYABLE, 'utf8').catch(() => '{}'));
-await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards, { ub }));
+await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards));
 
 // ---------- per-store chrome (server-injected config) ----------
 const STORES = {
@@ -419,6 +415,11 @@ const page = `<!DOCTYPE html>
   // The visitor's REWE market (the extension's options page links here with it).
   if (/^\\d{1,12}$/.test(params.get('market') || '')) localStorage.setItem('nd-market', params.get('market'));
   const MARKET = localStorage.getItem('nd-market');
+  // Products that market can't sell, live from D1 (the Worker's /unbuyable).
+  let UNBUYABLE = new Set();
+  const unbuyableReady = MARKET
+    ? fetch('/unbuyable?market=' + MARKET).then((r) => r.json()).then((ids) => { UNBUYABLE = new Set(ids); }).catch(() => {})
+    : Promise.resolve();
 
   const SEP = '\\u001f'; // joins a category path into one comparable key
 
@@ -441,6 +442,7 @@ const page = `<!DOCTYPE html>
   const blurbEl = document.getElementById('blurb');
   const footerEl = document.getElementById('footer');
 
+  let initialFilters = { q: params.get('q'), cat: params.get('cat'), sort: params.get('sort') };
   let catValue = ''; // SEP-joined path of the selected tree node ('' = whole store)
   let sortValue = 'score';
   let renderLimit = PAGE_SIZE;
@@ -595,6 +597,17 @@ const page = `<!DOCTYPE html>
 
     matched = next;
     renderGrid();
+    syncUrl();
+  }
+
+  // Mirror the filters into the URL so a refresh or a shared link keeps them.
+  function syncUrl() {
+    const url = new URL(location.href);
+    const set = (k, v) => (v ? url.searchParams.set(k, v) : url.searchParams.delete(k));
+    set('q', input.value.trim());
+    set('cat', catValue.split(SEP).join(' › '));
+    set('sort', sortValue === 'score' ? '' : sortValue);
+    if (url.href !== location.href) history.replaceState(null, '', url);
   }
 
   function scheduleRefresh(resetLimit = false, debounceMs = 0) {
@@ -763,16 +776,19 @@ const page = `<!DOCTYPE html>
 
   function applyStore(payload) {
     PATHS = payload.paths || [];
-    const ub = new Set((payload.ub || {})[MARKET] || []);
-    DATA = (payload.cards || []).filter((c) => !ub.has(c.id));
+    DATA = store === 'rewe' ? (payload.cards || []).filter((c) => !UNBUYABLE.has(c.id)) : payload.cards || [];
     const hidden = (payload.cards || []).length - DATA.length;
     if (hidden) blurbEl.insertAdjacentHTML('beforeend', ' Hiding ' + hidden.toLocaleString() + (hidden === 1 ? ' product' : ' products') + ' your market can’t sell.');
-    // reset filters for the new store
-    input.value = '';
-    sortValue = 'score';
-    syncSelect('sort', 'score');
+    // The first load restores the filters from the URL; a store switch resets them.
+    const want = initialFilters || {};
+    initialFilters = null;
+    input.value = want.q || '';
+    sortValue = SORTS[want.sort] ? want.sort : 'score';
+    syncSelect('sort', sortValue);
     computeCats();
     buildCatSelect();
+    const cat = (want.cat || '').split(' › ').join(SEP);
+    if (cat && CAT_NODES.some((n) => n.key === cat)) syncSelect('cat', cat);
     scheduleRefresh(true);
   }
 
@@ -791,7 +807,7 @@ const page = `<!DOCTYPE html>
     count.textContent = 'Loading products…';
     let data;
     try {
-      data = await fetchStore(s);
+      [data] = await Promise.all([fetchStore(s), unbuyableReady]);
     } catch (e) {
       if (store === s) count.textContent = 'Failed to load products.';
       return;
