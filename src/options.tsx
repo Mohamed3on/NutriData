@@ -126,7 +126,7 @@ function OptionsApp() {
                 <>
                   <a
                     className='underline underline-offset-2'
-                    href={`https://protein-index.mohamed3on.com/?market=${market}`}
+                    href={`https://nutridata.mohamed3on.com/rewe?market=${market}`}
                     target='_blank'
                     rel='noopener'
                   >

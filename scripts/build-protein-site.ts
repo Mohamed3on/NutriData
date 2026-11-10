@@ -11,7 +11,7 @@
 // Output (into the deployed site's asset dir):
 //   - public/mercadona.json : Mercadona cards (+ absolute product url `u`)
 //   - public/rewe.json      : REWE cards (same shape), ranked by NutriScore
-//   - public/index.html     : one page, store toggle, fetches {store}.json
+//   - public/{store}.html   : one page per store (served at /{store}), store toggle, fetches {store}.json
 //
 // The card shape + NutriScore / protein-per-€ / protein-per-100-kcal formulas
 // match patch-mercadona-media.ts and src/metrics.ts exactly, so both stores
@@ -19,14 +19,13 @@
 // rebuild fed by the extension) only means regenerating data/rewe-products.json
 // and re-running this script — the site stays identical.
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { computeNutriScore, fiberFromEnergy, LOW_SCORE } from '../src/nutriScore';
 
 const REPO = `${import.meta.dir}/..`;
 const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site/public`;
 const MERCADONA_CARDS = `${REPO}/data/mercadona-cards.json`;
 const REWE_PRODUCTS = `${REPO}/data/rewe-products.json`;
-const DEFAULT_STORE = 'rewe';
 
 const norm = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -190,31 +189,55 @@ await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards));
 const STORES = {
   mercadona: {
     label: 'Mercadona', file: 'mercadona.json', count: mercadonaCards.length,
-    h1: 'NutriData index for Mercadona products',
+    h1: 'Mercadona protein index',
     name: 'Mercadona', home: 'https://tienda.mercadona.es/', homeLabel: "Mercadona's official online store",
   },
   rewe: {
     label: 'REWE', file: 'rewe.json', count: reweCards.length,
-    h1: 'NutriData index for REWE products',
+    h1: 'REWE protein index',
     name: 'REWE', home: 'https://shop.rewe.de/', homeLabel: "REWE's official online store",
   },
 };
 
 // ---------- static sort select (same options for both stores) ----------
-const sortOptions: [string, string][] = [
-  ['score', 'NutriScore (highest)'],
-  ['ppe', 'Protein per € (highest)'],
-  ['ppk', 'Protein per 100 kcal (highest)'],
-  ['protein', 'Most protein per 100 g'],
-  ['cheapest', 'Cheapest unit price'],
-  ['bestkg', 'Best price per kg/L'],
-  ['lowcal', 'Fewest calories per 100 g'],
-  ['alpha', 'Name (A → Z)'],
+const sortGroups: [string, [string, string][]][] = [
+  ['Ranking', [
+    ['score', 'NutriScore (highest)'],
+    ['ppe', 'Protein per € (highest)'],
+    ['ppk', 'Protein per 100 kcal (highest)'],
+  ]],
+  ['Nutrition', [
+    ['protein', 'Most protein per 100 g'],
+    ['fiber', 'Most fiber per 100 g'],
+    ['lowsugar', 'Least sugar per 100 g'],
+    ['lowcarb', 'Fewest carbs per 100 g'],
+    ['lowcal', 'Fewest calories per 100 g'],
+  ]],
+  ['Price & name', [
+    ['bestkg', 'Lowest price per kg/L'],
+    ['alpha', 'Name (A → Z)'],
+  ]],
 ];
 const chevron = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground opacity-50 shrink-0"><path d="m6 9 6 6 6-6"/></svg>`;
-const sortOptHtml = sortOptions
-  .map((o, i) => `        <div id="sort-opt-${i}" role="option" data-value="${o[0]}"${o[0] === 'score' ? ' aria-selected="true"' : ''}>${esc(o[1])}</div>`)
+let optIdx = 0;
+const sortOptHtml = sortGroups
+  .map(([label, opts], g) => `        <div role="group" aria-labelledby="sort-group-${g}"><div role="heading" id="sort-group-${g}">${esc(label)}</div>\n` +
+    opts.map((o) => `          <div id="sort-opt-${optIdx++}" role="option" data-value="${o[0]}"${o[0] === 'score' ? ' aria-selected="true"' : ''}>${esc(o[1])}</div>`).join('\n') +
+    '\n        </div>')
   .join('\n');
+
+// Quick nutrient filters (per 100 g). Thresholds follow the EU nutrition-claim
+// cut-offs where one exists (low sugar ≤5 g, high fibre ≥6 g, low fat ≤3 g).
+// The tests themselves live in the client's FILTER_TESTS, keyed the same.
+const filterChips: [string, string][] = [
+  ['protein', 'Protein ≥ 20 g'],
+  ['sugar', 'Sugar ≤ 5 g'],
+  ['fiber', 'Fiber ≥ 6 g'],
+  ['fat', 'Fat ≤ 3 g'],
+];
+const chipsHtml = filterChips
+  .map(([k, label]) => `<button type="button" class="chip" data-filter="${k}" aria-pressed="false">${esc(label)}</button>`)
+  .join('\n      ');
 const sortSelectHtml = `<div id="sort" class="select">
     <button type="button" class="btn-outline w-full sm:w-[15rem]" id="sort-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="sort-listbox">
       <span class="truncate">NutriScore (highest)</span>
@@ -228,14 +251,26 @@ ${sortOptHtml}
     <input type="hidden" name="sort-value" value="score" />
   </div>`;
 
-const def = STORES[DEFAULT_STORE as keyof typeof STORES];
-
-const page = `<!DOCTYPE html>
+// One page per store, served at /{store} (rewe.html → /rewe), so each has its
+// own title and share preview. The in-page tabs still switch stores without a
+// reload; the Worker redirects / to the default store.
+const SITE = 'https://nutridata.mohamed3on.com';
+const page = (storeKey: keyof typeof STORES) => {
+  const def = STORES[storeKey];
+  const title = `${def.h1} · NutriData`;
+  const description = `Every ${def.name} product with nutrition data, ranked by protein per € and per calorie. Search, filter and sort ${def.count.toLocaleString('en')} products.`;
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NutriData: independent protein &amp; nutrition index for Mercadona &amp; REWE</title>
+<title>${esc(title)}</title>
+<meta name="description" content="${esc(description)}">
+<link rel="canonical" href="${SITE}/${storeKey}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="${SITE}/${storeKey}">
+<meta property="og:title" content="${esc(title)}">
+<meta property="og:description" content="${esc(description)}">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -291,6 +326,11 @@ const page = `<!DOCTYPE html>
   .store-tab { padding: 0.25rem 0.85rem; font-size: 13px; font-weight: 500; border-radius: 0.375rem; color: var(--muted-foreground); cursor: pointer; border: none; background: transparent; transition: background 120ms, color 120ms; }
   .store-tab[aria-selected="true"] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.08); }
   .store-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+  .chip { padding: 0.3rem 0.75rem; font-size: 12.5px; font-weight: 500; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--foreground); cursor: pointer; font-variant-numeric: tabular-nums; transition: background 120ms, color 120ms, border-color 120ms; }
+  .chip:hover { background: var(--accent); }
+  .chip[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+  .chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
   .card-tile {
     display: flex; flex-direction: column; overflow: hidden;
@@ -367,7 +407,7 @@ const page = `<!DOCTYPE html>
 <div class="mx-auto max-w-[1400px] px-4 py-6 sm:py-10">
   <header class="mb-5 sm:mb-7">
     <div id="store-tabs" role="tablist" aria-label="Choose store" class="mb-3">
-      ${Object.entries(STORES).map(([key, s]) => `<button type="button" class="store-tab" role="tab" data-store="${key}" aria-selected="${key === DEFAULT_STORE}">${esc(s.label)}</button>`).join('\n      ')}
+      ${Object.entries(STORES).map(([key, s]) => `<button type="button" class="store-tab" role="tab" data-store="${key}" aria-selected="${key === storeKey}">${esc(s.label)}</button>`).join('\n      ')}
     </div>
     <div class="flex flex-wrap items-baseline gap-3">
       <h1 id="title" class="text-2xl font-semibold tracking-tight sm:text-3xl">${esc(def.h1)}</h1>
@@ -391,6 +431,10 @@ const page = `<!DOCTYPE html>
         </button>
       </div>
     </div>
+    <div id="chips" class="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="Nutrient filters, per 100 g">
+      ${chipsHtml}
+      <span class="ml-1 text-xs text-muted-foreground">per 100&#8239;g</span>
+    </div>
     <p id="count" class="mt-2 min-h-[1em] text-xs tabular-nums text-muted-foreground">Loading products…</p>
   </div>
 
@@ -411,7 +455,7 @@ const page = `<!DOCTYPE html>
   const STORES = ${JSON.stringify(STORES)};
   const PAGE_SIZE = 60;
   const params = new URLSearchParams(location.search);
-  let store = STORES[params.get('store')] ? params.get('store') : '${DEFAULT_STORE}';
+  let store = '${storeKey}';
   // The visitor's REWE market (the extension's options page links here with it).
   if (/^\\d{1,12}$/.test(params.get('market') || '')) localStorage.setItem('nd-market', params.get('market'));
   const MARKET = localStorage.getItem('nd-market');
@@ -442,9 +486,10 @@ const page = `<!DOCTYPE html>
   const blurbEl = document.getElementById('blurb');
   const footerEl = document.getElementById('footer');
 
-  let initialFilters = { q: params.get('q'), cat: params.get('cat'), sort: params.get('sort') };
+  let initialFilters = { q: params.get('q'), cat: params.get('cat'), sort: params.get('sort'), f: params.get('f') };
   let catValue = ''; // SEP-joined path of the selected tree node ('' = whole store)
   let sortValue = 'score';
+  const activeFilters = new Set(); // keys of FILTER_TESTS currently on
   let renderLimit = PAGE_SIZE;
   let matched = [];
   let refreshFrame = 0;
@@ -456,15 +501,28 @@ const page = `<!DOCTYPE html>
   }
   const norm = s => s.toLowerCase().normalize('NFD').replace(/\\p{Diacritic}/gu, '');
 
+  // hero: the card's headline stat while this sort is on, so the number being
+  // ranked is the one you see (protein per 100 g otherwise). valid: rows that
+  // fail it sink to the end — without it "fewest calories" is all Coke Zero.
+  // Ties keep NutriScore order (DATA is pre-sorted, Array#sort is stable), so
+  // the 0 g-sugar products come out best-first rather than oils and water.
   const SORTS = {
     score:    { key: 'ns', dir: -1, kind: 'num' },
-    ppe:      { key: 'pe', dir: -1, kind: 'num' },
-    ppk:      { key: 'pk', dir: -1, kind: 'num' },
+    ppe:      { key: 'pe', dir: -1, kind: 'num', hero: ['g protein', 'per €'] },
+    ppk:      { key: 'pk', dir: -1, kind: 'num', hero: ['g protein', 'per 100 kcal'] },
     protein:  { key: 'p', dir: -1, kind: 'num' },
-    cheapest: { key: 'pr', dir:  1, kind: 'num' },
+    fiber:    { key: 'fi', dir: -1, kind: 'num', hero: ['g fiber', 'per 100g'] },
+    lowsugar: { key: 'su', dir:  1, kind: 'num', hero: ['g sugar', 'per 100g'] },
+    lowcarb:  { key: 'cb', dir:  1, kind: 'num', hero: ['g carbs', 'per 100g'] },
+    lowcal:   { key: 'cal', dir:  1, kind: 'num', hero: ['kcal', 'per 100g'], valid: (it) => it.p >= 0.5 },
     bestkg:   { key: 'kg', dir:  1, kind: 'num' },
-    lowcal:   { key: 'cal', dir:  1, kind: 'num' },
     alpha:    { key: 'sn', dir:  1, kind: 'str' },
+  };
+  const FILTER_TESTS = {
+    protein: (it) => it.p >= 20,
+    sugar:   (it) => it.su != null && it.su <= 5,
+    fiber:   (it) => it.fi != null && it.fi >= 6,
+    fat:     (it) => it.ft != null && it.ft <= 3,
   };
 
   function lerpColor(v, good, bad) {
@@ -507,24 +565,32 @@ const page = `<!DOCTYPE html>
     const refStr = item.kg != null && isFinite(item.kg)
       ? '€' + Number(item.kg).toFixed(2) + '/' + (item.rf || 'kg')
       : '';
-    const proteinStr = Number(item.p) >= 10 ? String(Math.round(item.p)) : Number(item.p).toFixed(1);
+    // Headline stat: whatever the active sort ranks by (protein per 100 g by default).
+    const cfg = SORTS[sortValue] || SORTS.score;
+    const heroKey = cfg.hero ? cfg.key : 'p';
+    const [heroUnit, heroPer] = cfg.hero || ['g protein', 'per 100g'];
+    const hv = Number(item[heroKey]);
+    const heroStr = item[heroKey] == null || !isFinite(hv) ? '–' : hv >= 10 ? String(Math.round(hv)) : hv.toFixed(1);
     // Supporting efficiency line (the two NutriScore inputs + calories), muted.
     const ratios = [];
-    if (item.pe != null && isFinite(item.pe)) ratios.push('<span><b style="color:' + lerpColor(item.pe, 12, 4) + '">' + fmt1(item.pe) + '</b> g/€</span>');
-    if (item.pk != null && isFinite(item.pk)) ratios.push('<span><b style="color:' + lerpColor(item.pk, 10, 3) + '">' + fmt1(item.pk) + '</b> g/100kcal</span>');
-    ratios.push('<span>' + Math.round(item.cal) + ' kcal</span>');
+    if (heroKey !== 'pe' && item.pe != null && isFinite(item.pe)) ratios.push('<span><b style="color:' + lerpColor(item.pe, 12, 4) + '">' + fmt1(item.pe) + '</b> g/€</span>');
+    if (heroKey !== 'pk' && item.pk != null && isFinite(item.pk)) ratios.push('<span><b style="color:' + lerpColor(item.pk, 10, 3) + '">' + fmt1(item.pk) + '</b> g/100kcal</span>');
+    if (heroKey !== 'cal') ratios.push('<span>' + Math.round(item.cal) + ' kcal</span>');
     // Full macro breakdown — present but the lowest-emphasis tier on the card.
-    const macros = [
-      nutriRow('Carbs', item.cb), nutriRow('Sugar', item.su), nutriRow('Fat', item.ft),
-      nutriRow('Sat fat', item.sf), nutriRow('Fiber', item.fi), nutriRow('Salt', item.sa),
-    ].filter(Boolean).join('');
+    // Protein joins it when the hero shows something else; the hero's own
+    // nutrient leaves it.
+    const macros = [['Protein', 'p'], ['Carbs', 'cb'], ['Sugar', 'su'], ['Fat', 'ft'], ['Sat fat', 'sf'], ['Fiber', 'fi'], ['Salt', 'sa']]
+      .filter(([, k]) => k !== heroKey)
+      .map(([label, k]) => nutriRow(label, item[k])).filter(Boolean).join('');
+    // On the per-kg sort the unit price is what's ranked, so it leads.
+    const [priceMain, priceSub] = sortValue === 'bestkg' && refStr ? [refStr, priceStr] : [priceStr, refStr];
     const body = [
       '<h3>' + escHtml(item.n) + '</h3>',
       item.es ? '<p class="es">' + escHtml(item.es) + '</p>' : '',
       renderCrumb(item.c),
       '<div class="hero">' +
-        '<div class="protein"><b>' + proteinStr + '</b><span>g protein<small>per 100g</small></span></div>' +
-        (priceStr ? '<div class="price"><b>' + priceStr + '</b>' + (refStr ? '<small>' + escHtml(refStr) + '</small>' : '') + '</div>' : '') +
+        '<div class="protein"><b>' + heroStr + '</b><span>' + heroUnit + '<small>' + heroPer + '</small></span></div>' +
+        (priceMain ? '<div class="price"><b>' + escHtml(priceMain) + '</b>' + (priceSub ? '<small>' + escHtml(priceSub) + '</small>' : '') + '</div>' : '') +
       '</div>',
       '<div class="ratios">' + ratios.join('') + '</div>',
       macros ? '<div class="macros">' + macros + '</div>' : '',
@@ -535,7 +601,7 @@ const page = `<!DOCTYPE html>
   function renderGrid() {
     const totalMatches = matched.length;
     const visibleCount = Math.min(renderLimit, totalMatches);
-    const active = input.value.trim() || catValue;
+    const active = input.value.trim() || catValue || activeFilters.size;
     resetBtn.classList.toggle('hidden', !active);
 
     if (totalMatches === 0) {
@@ -576,18 +642,22 @@ const page = `<!DOCTYPE html>
     const cfg = SORTS[sortValue] || SORTS.score;
     const { key, dir, kind } = cfg;
     const sentinel = dir > 0 ? Infinity : -Infinity;
+    const tests = [...activeFilters].map(k => FILTER_TESTS[k]);
+    const valid = cfg.valid;
 
     const next = [];
     for (let i = 0; i < DATA.length; i++) {
       const item = DATA[i];
       if (catMask && !(item.c != null && catMask[item.c])) continue;
       if (terms.length && !terms.every(t => item.q.includes(t))) continue;
+      if (tests.length && !tests.every(t => t(item))) continue;
       next.push(item);
     }
 
     // DATA is pre-sorted by NutriScore at build time, so the default 'score'
     // view needs no re-sort on every keystroke — only the other sorts do.
     if (sortValue !== 'score') next.sort((a, b) => {
+      if (valid) { const oa = valid(a), ob = valid(b); if (oa !== ob) return oa ? -1 : 1; }
       if (kind === 'str') return dir * ((a[key] || '').localeCompare(b[key] || ''));
       const va = typeof a[key] === 'number' ? a[key] : sentinel;
       const vb = typeof b[key] === 'number' ? b[key] : sentinel;
@@ -607,6 +677,7 @@ const page = `<!DOCTYPE html>
     set('q', input.value.trim());
     set('cat', catValue.split(SEP).join(' › '));
     set('sort', sortValue === 'score' ? '' : sortValue);
+    set('f', [...activeFilters].join(','));
     if (url.href !== location.href) history.replaceState(null, '', url);
   }
 
@@ -747,8 +818,17 @@ const page = `<!DOCTYPE html>
     root.dispatchEvent(new CustomEvent('change', { detail: { value: v } }));
   }
 
+  function setFilters(keys) {
+    activeFilters.clear();
+    for (const k of keys) if (FILTER_TESTS[k]) activeFilters.add(k);
+    document.querySelectorAll('#chips .chip').forEach(b => {
+      b.setAttribute('aria-pressed', activeFilters.has(b.dataset.filter) ? 'true' : 'false');
+    });
+  }
+
   function updateChrome(cfg) {
     titleEl.textContent = cfg.h1;
+    document.title = cfg.h1 + ' · NutriData';
     totalEl.textContent = cfg.count.toLocaleString() + ' products';
     blurbEl.innerHTML = 'Ranked by <span class="font-medium text-foreground">NutriScore</span> — protein per 100\\u202Fkcal × protein per €, adjusted for fiber &amp; saturated fat. Independent index, not affiliated with ' + escHtml(cfg.name) + '.';
     footerEl.innerHTML = 'Product links open on <a href="' + cfg.home + '" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">' + escHtml(cfg.homeLabel) + '</a>. Product data and images are referenced from ' + escHtml(cfg.name) + ' product pages for identification. <a href="https://github.com/mohamed3on/NutriData" target="_blank" rel="noopener" class="underline-offset-2 hover:text-foreground hover:underline">NutriData</a> is independent and not affiliated with or endorsed by ' + escHtml(cfg.name) + '.';
@@ -768,7 +848,7 @@ const page = `<!DOCTYPE html>
     // Revalidate against the server (assets ship must-revalidate + ETag), so a
     // redeploy of {store}.json is picked up instead of pinned forever. We only
     // pay this once per store per session — subsequent switches hit CACHE.
-    return (inflight[s] = fetch(STORES[s].file, { cache: 'no-cache' })
+    return (inflight[s] = fetch('/' + STORES[s].file, { cache: 'no-cache' })
       .then((r) => r.json())
       .then((d) => (CACHE[s] = d))
       .finally(() => { delete inflight[s]; }));
@@ -785,6 +865,7 @@ const page = `<!DOCTYPE html>
     input.value = want.q || '';
     sortValue = SORTS[want.sort] ? want.sort : 'score';
     syncSelect('sort', sortValue);
+    setFilters((want.f || '').split(','));
     computeCats();
     buildCatSelect();
     const cat = (want.cat || '').split(' › ').join(SEP);
@@ -799,7 +880,7 @@ const page = `<!DOCTYPE html>
     updateChrome(cfg);
     // reflect store in the URL so it's shareable / back-button friendly
     const url = new URL(location.href);
-    url.searchParams.set('store', s);
+    url.pathname = '/' + s;
     history.replaceState(null, '', url);
 
     if (CACHE[s]) { applyStore(CACHE[s]); return; } // cached → instant swap
@@ -821,7 +902,15 @@ const page = `<!DOCTYPE html>
   showMoreButton.addEventListener('click', () => { renderLimit += PAGE_SIZE; renderGrid(); });
   resetBtn.addEventListener('click', () => {
     input.value = '';
+    setFilters([]);
     syncSelect('cat', '');
+  });
+  document.getElementById('chips').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    const k = chip.dataset.filter;
+    setFilters(activeFilters.has(k) ? [...activeFilters].filter(x => x !== k) : [...activeFilters, k]);
+    scheduleRefresh(true);
   });
   document.getElementById('store-tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.store-tab');
@@ -879,8 +968,13 @@ const page = `<!DOCTYPE html>
 </script>
 </body>
 </html>`;
+};
 
-await writeFile(`${SITE_DIR}/index.html`, page);
-console.log(`wrote ${SITE_DIR}/index.html`);
+for (const key of Object.keys(STORES) as (keyof typeof STORES)[]) {
+  await writeFile(`${SITE_DIR}/${key}.html`, page(key));
+  console.log(`wrote ${SITE_DIR}/${key}.html`);
+}
+// The pre-/{store} single page; leaving it would ship a stale copy at /index.html.
+await rm(`${SITE_DIR}/index.html`, { force: true });
 console.log(`  mercadona.json: ${mercadonaCards.length} cards`);
 console.log(`  rewe.json:      ${reweCards.length} cards`);

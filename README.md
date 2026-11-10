@@ -63,7 +63,7 @@ The NutriScore shown by NutriData is a custom metric, **not** the official Nutri
 - Lowered by saturated fat: 1% per gram per 100 g, at most −50%
 - Lowered by sugar beyond the first 5 g per 100 g: at most −40%
 
-Higher scores are better. The same formula ranks products on the [protein index](https://protein-index.mohamed3on.com).
+Higher scores are better. The same formula ranks products on the [protein index](https://nutridata.mohamed3on.com).
 
 ### 📈 Protein index contributions
 
