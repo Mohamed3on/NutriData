@@ -3,7 +3,7 @@
 // generator (scripts/build-protein-site.ts) so both rank on the same scale.
 //
 // A weighted geometric mean favouring protein-per-100-kcal over protein-per-€,
-// lifted by fiber (capped +15%) and dragged down by saturated fat (floored
+// lifted by fiber (linear to +20% at 10 g/100g) and dragged down by saturated fat (floored
 // −50%) and sugar (floored −40%). Inputs are per-100g numbers; callers handle
 // missing data / formatting.
 //
@@ -23,7 +23,7 @@ export function computeNutriScore(
   satFat: number | null | undefined,
   sugar?: number | null
 ): number {
-  const fiberBonus = fiber && fiber > 0 ? 1 + Math.min(fiber / 8, 0.15) : 1;
+  const fiberBonus = fiber && fiber > 0 ? 1 + 0.2 * Math.min(fiber / 10, 1) : 1;
   const satFatPenalty = satFat && satFat > 0 ? 1 - Math.min(satFat / 100, 0.5) : 1;
   const sugarPenalty = sugar && sugar > 5 ? 1 - Math.min((sugar - 5) / 90, 0.4) : 1;
   return (
