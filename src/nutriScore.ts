@@ -49,5 +49,15 @@ export function fiberFromEnergy(
   calories: number | null | undefined
 ): number | null {
   if (carbs == null || fat == null || calories == null) return null;
-  return Math.max(0, (calories - 4 * protein - 4 * carbs - 9 * fat - 3) / 2);
+  // Capped at 5 g: the gap is just as often alcohol (soy sauce) or a bad label
+  // (sausage "with" 20 g fiber), and a guess shouldn't earn the full bonus.
+  return Math.min(5, Math.max(0, (calories - 4 * protein - 4 * carbs - 9 * fat - 3) / 2));
+}
+
+// Coffee and tea labels describe the dry grounds or leaves, whose fiber stays in
+// the filter, so they get no fiber bonus. Cocoa and chocolate drinks share that
+// department (REWE "Kaffee, Tee & Kakao", Mercadona "Chocolate drinks, coffee &
+// tea") but are eaten whole, so they keep it. Takes [department, subcategory].
+export function isBrewed([dept = '', sub = '']: string[]): boolean {
+  return /kaffee|coffee/i.test(dept) && !/kakao|cacao|chocolate|schokolade/i.test(sub);
 }

@@ -17,7 +17,7 @@
 //     (build-protein-site.ts), which owns the page template + client JS.
 
 import { appendFile, open, readFile, writeFile, access } from 'node:fs/promises';
-import { computeNutriScore, fiberFromEnergy } from '../src/nutriScore';
+import { computeNutriScore, fiberFromEnergy, isBrewed } from '../src/nutriScore';
 import {
   mercadonaPricePerKg,
   mercadonaReferenceFormat,
@@ -269,7 +269,7 @@ for (const id of ids) {
   const pricePerKg = mercadonaPricePerKg(priceFields(api));
   const ppc = pricePerKg != null ? (protein * 10) / pricePerKg : null;
   const nutriScore = ppc != null && isFinite(ppc100)
-    ? computeNutriScore(ppc100, ppc, fiber ?? fiberFromEnergy(protein, carbs, fat, calories), satFat, sugar)
+    ? computeNutriScore(ppc100, ppc, isBrewed([api.category ?? '', api.subcategory ?? '']) ? null : fiber ?? fiberFromEnergy(protein, carbs, fat, calories), satFat, sugar)
     : null;
   cards.push({
     api, protein, carbs, sugar, fat, calories, fiber, salt, satFat,

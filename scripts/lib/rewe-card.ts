@@ -3,7 +3,7 @@
 // bundles this into the page, which folds in the rows the extension updated
 // after the snapshot was built (the Worker's /changes), so a collected price
 // shows up on the next page load instead of the next deploy.
-import { computeNutriScore, fiberFromEnergy, LOW_SCORE } from '../../src/nutriScore';
+import { computeNutriScore, fiberFromEnergy, isBrewed, LOW_SCORE } from '../../src/nutriScore';
 
 // "3.9 g" → 3.9 ; "\N" / "" / null → null
 export function num(s: string | null | undefined): number | null {
@@ -114,7 +114,7 @@ export function reweCard(p: ReweProduct): Card | 'no-nutrition' | 'insane' {
   const ppc = ppu && ppu > 0 && !isConcentrate ? (protein * 10) / ppu : null;
 
   const nutriScore = ppc != null && isFinite(ppc100)
-    ? computeNutriScore(ppc100, ppc, fiber ?? fiberFromEnergy(protein, carbs, fat, calories), satFat, sugar)
+    ? computeNutriScore(ppc100, ppc, isBrewed(p.cats) ? null : fiber ?? fiberFromEnergy(protein, carbs, fat, calories), satFat, sugar)
     : null;
 
   // REWE categories are a 3-4 level path (dept > … > leaf). Keep every level:
