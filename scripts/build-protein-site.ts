@@ -20,22 +20,17 @@
 // and re-running this script — the site stays identical.
 
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { computeNutriScore, fiberFromEnergy, LOW_SCORE } from '../src/nutriScore';
+import { reweCard, byScore, type Card, type ReweProduct } from './lib/rewe-card';
 
 const REPO = `${import.meta.dir}/..`;
 const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site/public`;
 const MERCADONA_CARDS = `${REPO}/data/mercadona-cards.json`;
 const REWE_PRODUCTS = `${REPO}/data/rewe-products.json`;
 
-const norm = (s: string) =>
-  s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-const round = (n: number | null | undefined, digits = 1): number | undefined =>
-  n == null || !isFinite(n) ? undefined : +n.toFixed(digits);
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // ---------- Mercadona: load prebuilt cards, add absolute product url ----------
-type Card = Record<string, unknown> & { id: string };
 const mercadonaCards: Card[] = JSON.parse(await readFile(MERCADONA_CARDS, 'utf8'));
 for (const c of mercadonaCards) {
   c.u = `https://tienda.mercadona.es/product/${c.id}/`;
@@ -49,110 +44,26 @@ for (const c of mercadonaCards) {
 console.log(`mercadona: ${mercadonaCards.length} cards`);
 
 // ---------- REWE: build cards from cleaned dump ----------
-type ReweProduct = {
-  id: string; name: string; url: string; img: string; cats: string[];
-  price: number | null; ppu: number | null; unit: string | null;
-  brand: string | null; gtin: string | null;
-  nutri: (number | null)[]; // [protein, carbs, sugar, fat, calories, fiber, salt, satFat]
-};
 const reweProducts: ReweProduct[] = JSON.parse(await readFile(REWE_PRODUCTS, 'utf8'));
-
-// Reject physically-impossible per-100g rows (bad source data). The killer
-// case is near-zero calories with real macros: protein-per-100-kcal then
-// explodes and the row rockets to the top of the ranking. Mirrors the
-// Atwater sanity gate the Mercadona OCR pipeline used.
-function isSane(
-  protein: number, carbs: number | null, fat: number | null, calories: number
-): boolean {
-  if (protein < 0 || protein > 100) return false;
-  if (!(calories > 0) || calories > 950) return false;
-  if (fat != null && (fat < 0 || fat > 100)) return false;
-  if (carbs != null && (carbs < 0 || carbs > 105)) return false;
-  // Protein is 4 kcal/g, so 100 kcal can hold at most 25 g protein. A higher
-  // protein-per-100-kcal is physically impossible → bad calorie value. This is
-  // the value the ranking falls back to, so a bogus one rockets to the top.
-  if ((protein * 100) / calories > 27) return false;
-  const est = 4 * protein + 4 * (carbs || 0) + 9 * (fat || 0); // kcal implied by macros
-  if (est > calories * 2 + 10) return false;   // stated kcal implausibly low vs macros
-  if (calories > est * 3 + 100) return false;   // stated kcal implausibly high (e.g. kJ mislabel)
-  return true;
-}
 
 const reweCards: Card[] = [];
 const seen = new Set<string>();
 let skipNoNutr = 0, skipInsane = 0, dupes = 0, skipConcentrate = 0;
+// The newest D1 write in the snapshot: the page asks the Worker for rows
+// written since, so collected updates show without a rebuild.
+let asOf = '';
 for (const p of reweProducts) {
   if (seen.has(p.id)) { dupes++; continue; }
-  const [protein, carbs, sugar, fat, calories, fiber, salt, satFat] = p.nutri;
-  if (protein == null || calories == null || calories <= 0) { skipNoNutr++; continue; }
-  if (!isSane(protein, carbs, fat, calories)) { skipInsane++; continue; }
+  const card = reweCard(p);
+  if (card === 'no-nutrition') { skipNoNutr++; continue; }
+  if (card === 'insane') { skipInsane++; continue; }
   seen.add(p.id);
-
-  const ppc100 = protein / (calories / 100);
-  // price_per_unit is REWE's Grundpreis in €/kg (or €/L) — same role as
-  // Mercadona's reference price. protein is per 100g → *10 = per kg.
-  const ppu = p.ppu;
-  const name = p.name || '';
-  // REWE quotes the Grundpreis of a drink concentrate per litre of *prepared*
-  // product — a €1.49 tin of bouillon powder shows €0.21/l because it yields
-  // 7l — while `nutri` describes 100g of the powder in the tin. Reading the two
-  // together valued Knorr stock at ~900g of protein per euro and handed it the
-  // top four places of the index. The tell is a volume reference whose implied
-  // pack size is bigger than any real container, combined with dry-goods energy
-  // density: a genuine ready-to-drink liquid sold by the litre is nowhere near
-  // 150 kcal/100ml. Such a Grundpreis says nothing about protein per euro, so
-  // drop the price term and let the item rank unscored rather than first.
-  const isVolumeRef = /\b\d+(?:[.,]\d+)?\s*(?:ml|cl|l|liter|litre)\b/i.test(name);
-  const impliedPack = ppu && ppu > 0 && p.price ? p.price / ppu : null;
-  const isConcentrate =
-    isVolumeRef && impliedPack != null && impliedPack >= 3 && calories >= 150;
-  if (isConcentrate) skipConcentrate++;
-  const ppc = ppu && ppu > 0 && !isConcentrate ? (protein * 10) / ppu : null;
-
-  const nutriScore = ppc != null && isFinite(ppc100)
-    ? computeNutriScore(ppc100, ppc, fiber ?? fiberFromEnergy(protein, carbs, fat, calories), satFat, sugar)
-    : null;
-
-  // REWE categories are a 3-4 level path (dept > … > leaf). Keep every level:
-  // the site's category filter is a tree, so mid-levels like "Eiscreme &
-  // Eiswürfel" stay selectable instead of being collapsed away to the leaf.
-  const cats = p.cats.filter(Boolean);
-  const searchText = norm(`${name} ${p.brand || ''} ${cats.join(' ')}`);
-  const ns = round(nutriScore, 3);
-  const pe = round(ppc, 3);
-
-  // undefined-valued keys are dropped by JSON.stringify, so a flat literal
-  // gives the same output as conditional spreads without the double round().
-  reweCards.push({
-    id: p.id, n: name, u: p.url,
-    img: p.img || undefined,
-    cs: cats,
-    q: searchText, sn: norm(name),
-    ns, pe,
-    pk: round(ppc100, 3) || 0,
-    p: round(protein, 1) || 0,
-    cal: round(calories, 1) || 0,
-    pr: round(p.price, 2), kg: round(ppu, 2),
-    // REWE Grundpreis is €/L for liquids; detect from a volume measure in the
-    // name so the card shows €x/L instead of the €x/kg fallback.
-    rf: isVolumeRef ? 'L' : undefined,
-    cb: round(carbs, 1), su: round(sugar, 1), ft: round(fat, 1),
-    sf: round(satFat, 1), fi: round(fiber, 1), sa: round(salt, 1),
-  });
+  if (card.kg != null && card.pe == null) skipConcentrate++; // priced, yet no protein-per-€
+  if (p.updated && p.updated > asOf) asOf = p.updated;
+  reweCards.push(card);
 }
-// Pre-sort both stores exactly as the client's default 'score' sort would
-// (NutriScore desc, no-score items last, tie-broken by protein-per-100kcal) so
+// Pre-sort both stores exactly as the client's default 'score' sort would, so
 // the client can skip re-sorting 16k rows on every keystroke for the default.
-// Scores under LOW_SCORE are noise (every butter is 0.0–0.2), so those rank by
-// €/kg, cheapest first — the same rule as the extension's on-page sort.
-const byScore = (a: Card, b: Card) => {
-  const sa = typeof a.ns === 'number' ? a.ns : -Infinity;
-  const sb = typeof b.ns === 'number' ? b.ns : -Infinity;
-  if (sa > -Infinity && sb > -Infinity && sa < LOW_SCORE && sb < LOW_SCORE)
-    return ((a.kg as number) ?? Infinity) - ((b.kg as number) ?? Infinity) || 0;
-  if (sa !== sb) return sb - sa;
-  return (typeof b.pk === 'number' ? b.pk : -Infinity) - (typeof a.pk === 'number' ? a.pk : -Infinity);
-};
 mercadonaCards.sort(byScore);
 reweCards.sort(byScore);
 console.log(`rewe: ${reweCards.length} cards  (skipped no-nutrition=${skipNoNutr}, insane=${skipInsane}, dupes=${dupes}; unpriced concentrates=${skipConcentrate})`);
@@ -178,12 +89,18 @@ function withPathTable(cards: Card[]) {
 }
 
 // External JSON files, fetched at runtime — no <script> context to escape for.
-const dataJson = (cards: Card[]) => JSON.stringify(withPathTable(cards));
+const dataJson = (cards: Card[], extra = {}) => JSON.stringify({ ...withPathTable(cards), ...extra });
 // The site's public/ holds only generated files and isn't tracked, so a fresh
 // clone (CI included) has no directory to write into.
 await mkdir(SITE_DIR, { recursive: true });
 await writeFile(`${SITE_DIR}/mercadona.json`, dataJson(mercadonaCards));
-await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards));
+await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards, asOf ? { asOf } : {}));
+
+// The card code, bundled into the page so it can score the rows /changes returns
+// exactly as this build does.
+const bundled = await Bun.build({ entrypoints: [`${import.meta.dir}/lib/rewe-card.page.ts`], target: 'browser', minify: true });
+if (!bundled.success) throw new AggregateError(bundled.logs, 'bundling rewe-card failed');
+const reweCardJs = await bundled.outputs[0].text();
 
 // ---------- per-store chrome (server-injected config) ----------
 const STORES = {
@@ -451,6 +368,7 @@ const page = (storeKey: keyof typeof STORES) => {
 
   <footer id="footer" class="mt-12 border-t border-border pt-6 text-xs text-muted-foreground"></footer>
 </div>
+<script>${reweCardJs}</script>
 <script>
   const STORES = ${JSON.stringify(STORES)};
   const PAGE_SIZE = 60;
@@ -850,8 +768,35 @@ const page = (storeKey: keyof typeof STORES) => {
     // pay this once per store per session — subsequent switches hit CACHE.
     return (inflight[s] = fetch('/' + STORES[s].file, { cache: 'no-cache' })
       .then((r) => r.json())
+      .then((d) => d.asOf ? fetch('/changes?since=' + encodeURIComponent(d.asOf))
+        .then((r) => r.json()).then((rows) => mergeChanges(d, rows)).catch(() => {}).then(() => d) : d)
       .then((d) => (CACHE[s] = d))
       .finally(() => { delete inflight[s]; }));
+  }
+
+  // Fold in the products the extension updated after {store}.json was built,
+  // scored by the same code the build uses (ReweCard), then restore the
+  // default order the snapshot ships in.
+  function mergeChanges(d, rows) {
+    if (!rows.length) return;
+    const at = new Map(d.cards.map((c, i) => [c.id, i]));
+    const pathAt = new Map(d.paths.map((p, i) => [p.join(SEP), i]));
+    const drop = new Set();
+    for (const row of rows) {
+      const p = !row.gone_at && ReweCard.rowToProduct(row);
+      const card = p && ReweCard.reweCard(p);
+      if (!card || typeof card === 'string') { drop.add(row.shop_id); continue; }
+      if (card.cs.length) {
+        const key = card.cs.join(SEP);
+        if (!pathAt.has(key)) { pathAt.set(key, d.paths.length); d.paths.push(card.cs); }
+        card.c = pathAt.get(key);
+      }
+      delete card.cs;
+      if (at.has(card.id)) d.cards[at.get(card.id)] = card;
+      else { at.set(card.id, d.cards.length); d.cards.push(card); }
+    }
+    if (drop.size) d.cards = d.cards.filter((c) => !drop.has(c.id));
+    d.cards.sort(ReweCard.byScore);
   }
 
   function applyStore(payload) {

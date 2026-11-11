@@ -27,27 +27,8 @@ export function nz(s: string | null | undefined): string | null {
   return !s || s === '\\N' ? null : s;
 }
 
-// "3.9 g" → 3.9 ; "\N" / "" / null → null
-export function num(s: string | null | undefined): number | null {
-  if (!s || s === '\\N') return null;
-  const m = String(s).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
-  return m ? parseFloat(m[0]) : null;
-}
-
-// energy string → kcal (converts when the value is declared in kJ)
-export function kcal(s: string | null | undefined): number | null {
-  if (!s || s === '\\N') return null;
-  const v = num(s);
-  if (v === null) return null;
-  return /kj/i.test(String(s)) && !/kcal/i.test(String(s)) ? Math.round(v / 4.184) : v;
-}
-
-// REWE nutrition object → compact per-100g array, in the canonical slot order
-// used across the extension and site: [protein, carbs, sugar, fat, calories,
-// fiber, salt, satFat].
-export function toNutriArray(n: Record<string, string>): (number | null)[] {
-  return [num(n.protein), num(n.carbs), num(n.sugar), num(n.fat), kcal(n.calories), num(n.fiber), num(n.salt), num(n.saturatedFat)];
-}
+// Nutrition normalisation lives with the card code, which the site page bundles too.
+export { num, kcal, toNutriArray } from './rewe-card';
 
 // Read a plain-SQL pg_dump (optionally gzipped) and slice the public.product
 // COPY block. Returns the data rows plus a column accessor backed by a

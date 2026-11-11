@@ -10,13 +10,13 @@
 // Runs `wrangler d1 execute` under the site dir (where the D1 binding lives).
 
 import { writeFileSync } from 'node:fs';
-import { toNutriArray } from './lib/rewe-dump';
+import { rowToProduct } from './lib/rewe-card';
 
 const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site`;
 const OUT = `${import.meta.dir}/../data/rewe-products.json`;
 
 const SQL =
-  'SELECT shop_id, name, url, image_url, categories, price, price_per_unit, unit, brand, gtin, nutritional_data ' +
+  'SELECT shop_id, name, url, image_url, categories, price, price_per_unit, unit, brand, gtin, nutritional_data, updated_at ' +
   "FROM product WHERE shop='rewe' AND gone_at IS NULL"; // gone_at: page 404s, delisted
 
 async function query(sql: string): Promise<any[]> {
@@ -34,18 +34,8 @@ const rows = await query(SQL);
 let noNutri = 0;
 const products = [];
 for (const row of rows) {
-  let n: Record<string, string> = {};
-  if (row.nutritional_data) { try { n = JSON.parse(row.nutritional_data); } catch {} }
-  const nutri = toNutriArray(n); // [protein, carbs, sugar, fat, calories, fiber, salt, satFat]
-  if (nutri[0] === null && nutri[4] === null) { noNutri++; continue; } // no protein & no calories
-  let cats: string[] = [];
-  if (row.categories) { try { cats = JSON.parse(row.categories); } catch {} }
-  products.push({
-    // Some seeded urls read shop.rewe.de/shop/p/…, which REWE redirects to a
-    // /shop/shop/p/ path the extension doesn't run on — so it never saw them 404.
-    id: row.shop_id, name: row.name || '', url: (row.url || '').replace('rewe.de/shop/p/', 'rewe.de/p/'), img: row.image_url || '',
-    cats, price: row.price, ppu: row.price_per_unit, unit: row.unit, brand: row.brand, gtin: row.gtin, nutri,
-  });
+  const p = rowToProduct(row);
+  if (p) products.push(p); else noNutri++; // no protein & no calories
 }
 writeFileSync(OUT, JSON.stringify(products));
 console.log(`exported ${products.length} REWE products from D1 -> ${OUT}  (skipped no-nutrition=${noNutri})`);
