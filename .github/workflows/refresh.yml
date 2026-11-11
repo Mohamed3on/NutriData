@@ -23,18 +23,19 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: npm install -g wrangler
+      # Pinned: the bun and wrangler these install run with the Cloudflare token below.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: npm install -g wrangler@4.160.1
 
       # patch-mercadona-media.ts fetches nothing here: every id is already in
       # data/mercadona-media.jsonl, so phase 1 finds 0 pending and it just
       # rebuilds the cards with the D1 prices overlaid.
       - name: Rebuild Mercadona cards and the pages
+        env: &cloudflare
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           bun scripts/export-mercadona-prices-from-d1.ts
           bun scripts/patch-mercadona-media.ts
@@ -42,4 +43,5 @@ jobs:
 
       - name: Deploy
         working-directory: site
+        env: *cloudflare
         run: wrangler deploy
