@@ -6,7 +6,7 @@
 //
 // Usage:
 //   scripts/seed-d1.ts <dump.(sql|gz)> <out-seed.sql>
-//   (cd ../mercadona-protein-site && wrangler d1 execute nutridata --remote --file=<out-seed.sql>)
+//   (cd site && wrangler d1 execute nutridata --remote --file=<out-seed.sql>)
 
 import { writeFileSync } from 'node:fs';
 import { parseArr, nz, readProductCopyBlock } from './lib/rewe-dump';

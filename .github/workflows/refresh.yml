@@ -1,0 +1,45 @@
+# Rebuild the protein index's static parts and redeploy the site (site/).
+#
+# REWE needs none of this: the Worker builds rewe.json live from D1. Mercadona
+# cards come from the OCR data in data/, with the prices the extension collects
+# into D1 overlaid at build time, so those prices only move when this runs.
+# Wrangler content-hashes the assets, so a run that finds nothing new uploads
+# nothing and costs about half a minute.
+#
+# Needs two repo secrets: CLOUDFLARE_API_TOKEN (D1 read + Workers deploy) and
+# CLOUDFLARE_ACCOUNT_ID.
+name: Refresh protein index
+
+on:
+  schedule:
+    - cron: '0 * * * *' # hourly, on the hour (UTC)
+  workflow_dispatch: # allow a manual refresh
+
+# One refresh at a time; a queued run would only redo the same work.
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: npm install -g wrangler
+
+      # patch-mercadona-media.ts fetches nothing here: every id is already in
+      # data/mercadona-media.jsonl, so phase 1 finds 0 pending and it just
+      # rebuilds the cards with the D1 prices overlaid.
+      - name: Rebuild Mercadona cards and the pages
+        run: |
+          bun scripts/export-mercadona-prices-from-d1.ts
+          bun scripts/patch-mercadona-media.ts
+          bun scripts/build-protein-site.ts
+
+      - name: Deploy
+        working-directory: site
+        run: wrangler deploy

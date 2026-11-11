@@ -8,13 +8,13 @@
 //   export-mercadona-prices-from-d1.ts  (D1 -> data/mercadona-d1-prices.json)
 //   patch-mercadona-media.ts            (-> data/mercadona-cards.json)
 //   build-protein-site.ts               (-> public/{index.html,mercadona.json,...})
-//   (cd ../mercadona-protein-site && wrangler deploy)
+//   (cd site && wrangler deploy)
 //
 // Runs `wrangler d1 execute` under the site dir (where the D1 binding lives).
 
 import { writeFileSync } from 'node:fs';
 
-const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site`;
+const SITE_DIR = `${import.meta.dir}/../site`;
 const OUT = `${import.meta.dir}/../data/mercadona-d1-prices.json`;
 
 const SQL =

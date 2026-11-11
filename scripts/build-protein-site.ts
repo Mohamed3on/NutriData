@@ -18,7 +18,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { byScore, withPathTable, reweStore, REWE_SQL, type Card } from './lib/rewe-card';
 
 const REPO = `${import.meta.dir}/..`;
-const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site/public`;
+const SITE_DIR = `${import.meta.dir}/../site/public`;
 const MERCADONA_CARDS = `${REPO}/data/mercadona-cards.json`;
 
 const esc = (s: string) =>
@@ -42,7 +42,7 @@ console.log(`mercadona: ${mercadonaCards.length} cards`);
 // corrects the header to the live count once rewe.json loads.
 const d1 = Bun.spawn(
   ['wrangler', 'd1', 'execute', 'nutridata', '--remote', '--json', '--command', REWE_SQL],
-  { cwd: `${SITE_DIR}/..`, stdout: 'pipe', stderr: 'inherit' },
+  { cwd: `${import.meta.dir}/../site`, stdout: 'pipe', stderr: 'inherit' },
 );
 const d1Out = await new Response(d1.stdout).text();
 if ((await d1.exited) !== 0) throw new Error('wrangler d1 execute failed');

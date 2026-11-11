@@ -1,0 +1,24 @@
+{
+  "name": "mercadona-protein",
+  "main": "worker.js",
+  "compatibility_date": "2026-04-24",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "nutridata", "database_id": "2611d9d3-0d3f-440c-a8c6-35c37364a4f0" }
+  ],
+  "routes": [
+    { "pattern": "nutridata.mohamed3on.com", "custom_domain": true },
+    { "pattern": "protein-index.mohamed3on.com", "custom_domain": true }
+  ],
+  "unsafe": {
+    "bindings": [
+      { "name": "COLLECT_RATE_LIMIT", "type": "ratelimit", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }
+    ]
+  },
+  "version_metadata": { "binding": "VERSION" },
+  "observability": { "enabled": true }
+}
