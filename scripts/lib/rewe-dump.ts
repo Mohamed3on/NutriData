@@ -1,8 +1,4 @@
-// Shared helpers for the REWE data pipeline: Postgres pg_dump parsing and
-// nutrition normalisation. Used by build-rewe-data.ts (dump → JSON), seed-d1.ts
-// (dump → seed SQL) and export-rewe-from-d1.ts (D1 → JSON), so the COPY-block
-// slicing, the text[] parser, and the nutrition→compact-array mapping live in
-// one place instead of drifting across three scripts.
+// Postgres pg_dump parsing for seed-d1.ts (dump → D1 seed SQL).
 
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
@@ -26,9 +22,6 @@ export function parseArr(s: string): string[] {
 export function nz(s: string | null | undefined): string | null {
   return !s || s === '\\N' ? null : s;
 }
-
-// Nutrition normalisation lives with the card code, which the site page bundles too.
-export { num, kcal, toNutriArray } from './rewe-card';
 
 // Read a plain-SQL pg_dump (optionally gzipped) and slice the public.product
 // COPY block. Returns the data rows plus a column accessor backed by a

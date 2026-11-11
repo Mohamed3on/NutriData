@@ -1,31 +1,25 @@
 #!/usr/bin/env bun
 // Build the unified protein-index site (Mercadona + REWE store switcher).
 //
-// Inputs (static, no network):
+// Inputs:
 //   - data/mercadona-cards.json : prebuilt Mercadona card objects (from
 //     patch-mercadona-media.ts; bootstrapped once by extracting the card-data
 //     blob out of the previously deployed single-store index.html).
-//   - data/rewe-products.json   : cleaned REWE products (from the DB dump via
-//     build-rewe-data; nutrition + price-per-unit + categories + image).
+//   - the live D1 database, for the REWE product count only.
 //
 // Output (into the deployed site's asset dir):
 //   - public/mercadona.json : Mercadona cards (+ absolute product url `u`)
-//   - public/rewe.json      : REWE cards (same shape), ranked by NutriScore
 //   - public/{store}.html   : one page per store (served at /{store}), store toggle, fetches {store}.json
 //
-// The card shape + NutriScore / protein-per-€ / protein-per-100-kcal formulas
-// match patch-mercadona-media.ts and src/metrics.ts exactly, so both stores
-// rank on the same scale. Swapping the REWE data source later (e.g. a D1
-// rebuild fed by the extension) only means regenerating data/rewe-products.json
-// and re-running this script — the site stays identical.
+// rewe.json isn't built here: the Worker builds it live from D1 with
+// lib/rewe-card.ts, which also holds the ranking both stores share.
 
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { reweCard, byScore, type Card, type ReweProduct } from './lib/rewe-card';
+import { byScore, withPathTable, reweStore, REWE_SQL, type Card } from './lib/rewe-card';
 
 const REPO = `${import.meta.dir}/..`;
 const SITE_DIR = `${import.meta.dir}/../../mercadona-protein-site/public`;
 const MERCADONA_CARDS = `${REPO}/data/mercadona-cards.json`;
-const REWE_PRODUCTS = `${REPO}/data/rewe-products.json`;
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -43,64 +37,29 @@ for (const c of mercadonaCards) {
 }
 console.log(`mercadona: ${mercadonaCards.length} cards`);
 
-// ---------- REWE: build cards from cleaned dump ----------
-const reweProducts: ReweProduct[] = JSON.parse(await readFile(REWE_PRODUCTS, 'utf8'));
+// ---------- REWE: count only ----------
+// The page's description and header quote the product count; the client
+// corrects the header to the live count once rewe.json loads.
+const d1 = Bun.spawn(
+  ['wrangler', 'd1', 'execute', 'nutridata', '--remote', '--json', '--command', REWE_SQL],
+  { cwd: `${SITE_DIR}/..`, stdout: 'pipe', stderr: 'inherit' },
+);
+const d1Out = await new Response(d1.stdout).text();
+if ((await d1.exited) !== 0) throw new Error('wrangler d1 execute failed');
+const reweCount = reweStore(JSON.parse(d1Out.slice(d1Out.indexOf('[')))[0].results).cards.length;
+console.log(`rewe: ${reweCount} cards (built live by the Worker)`);
 
-const reweCards: Card[] = [];
-const seen = new Set<string>();
-let skipNoNutr = 0, skipInsane = 0, dupes = 0, skipConcentrate = 0;
-// The newest D1 write in the snapshot: the page asks the Worker for rows
-// written since, so collected updates show without a rebuild.
-let asOf = '';
-for (const p of reweProducts) {
-  if (seen.has(p.id)) { dupes++; continue; }
-  const card = reweCard(p);
-  if (card === 'no-nutrition') { skipNoNutr++; continue; }
-  if (card === 'insane') { skipInsane++; continue; }
-  seen.add(p.id);
-  if (card.kg != null && card.pe == null) skipConcentrate++; // priced, yet no protein-per-€
-  if (p.updated && p.updated > asOf) asOf = p.updated;
-  reweCards.push(card);
-}
-// Pre-sort both stores exactly as the client's default 'score' sort would, so
-// the client can skip re-sorting 16k rows on every keystroke for the default.
+// Pre-sorted exactly as the client's default 'score' sort would, so the client
+// can skip re-sorting on every keystroke for the default.
 mercadonaCards.sort(byScore);
-reweCards.sort(byScore);
-console.log(`rewe: ${reweCards.length} cards  (skipped no-nutrition=${skipNoNutr}, insane=${skipInsane}, dupes=${dupes}; unpriced concentrates=${skipConcentrate})`);
-
-// ---------- category paths → one shared table per store ----------
-// Each card points at its full category path by index instead of repeating the
-// strings 16k times. That keeps every level of the path available to the site's
-// tree filter and still ships smaller than the old flat cat/sub pair did.
-const PATH_SEP = '\u001f'; // never appears in a category name
-function withPathTable(cards: Card[]) {
-  const index = new Map<string, number>();
-  const paths: string[][] = [];
-  for (const card of cards) {
-    const segs = (card.cs as string[] | undefined) || [];
-    delete card.cs;
-    if (!segs.length) continue;
-    const key = segs.join(PATH_SEP);
-    let i = index.get(key);
-    if (i === undefined) { i = paths.length; index.set(key, i); paths.push(segs); }
-    card.c = i;
-  }
-  return { paths, cards };
-}
 
 // External JSON files, fetched at runtime — no <script> context to escape for.
-const dataJson = (cards: Card[], extra = {}) => JSON.stringify({ ...withPathTable(cards), ...extra });
+const dataJson = (cards: Card[]) => JSON.stringify(withPathTable(cards));
 // The site's public/ holds only generated files and isn't tracked, so a fresh
 // clone (CI included) has no directory to write into.
 await mkdir(SITE_DIR, { recursive: true });
 await writeFile(`${SITE_DIR}/mercadona.json`, dataJson(mercadonaCards));
-await writeFile(`${SITE_DIR}/rewe.json`, dataJson(reweCards, asOf ? { asOf } : {}));
-
-// The card code, bundled into the page so it can score the rows /changes returns
-// exactly as this build does.
-const bundled = await Bun.build({ entrypoints: [`${import.meta.dir}/lib/rewe-card.page.ts`], target: 'browser', minify: true });
-if (!bundled.success) throw new AggregateError(bundled.logs, 'bundling rewe-card failed');
-const reweCardJs = await bundled.outputs[0].text();
+await rm(`${SITE_DIR}/rewe.json`, { force: true }); // the Worker serves it now
 
 // ---------- per-store chrome (server-injected config) ----------
 const STORES = {
@@ -110,7 +69,7 @@ const STORES = {
     name: 'Mercadona', home: 'https://tienda.mercadona.es/', homeLabel: "Mercadona's official online store",
   },
   rewe: {
-    label: 'REWE', file: 'rewe.json', count: reweCards.length,
+    label: 'REWE', file: 'rewe.json', count: reweCount,
     h1: 'REWE protein index',
     name: 'REWE', home: 'https://shop.rewe.de/', homeLabel: "REWE's official online store",
   },
@@ -368,7 +327,6 @@ const page = (storeKey: keyof typeof STORES) => {
 
   <footer id="footer" class="mt-12 border-t border-border pt-6 text-xs text-muted-foreground"></footer>
 </div>
-<script>${reweCardJs}</script>
 <script>
   const STORES = ${JSON.stringify(STORES)};
   const PAGE_SIZE = 60;
@@ -768,40 +726,14 @@ const page = (storeKey: keyof typeof STORES) => {
     // pay this once per store per session — subsequent switches hit CACHE.
     return (inflight[s] = fetch('/' + STORES[s].file, { cache: 'no-cache' })
       .then((r) => r.json())
-      .then((d) => d.asOf ? fetch('/changes?since=' + encodeURIComponent(d.asOf))
-        .then((r) => r.json()).then((rows) => mergeChanges(d, rows)).catch(() => {}).then(() => d) : d)
       .then((d) => (CACHE[s] = d))
       .finally(() => { delete inflight[s]; }));
-  }
-
-  // Fold in the products the extension updated after {store}.json was built,
-  // scored by the same code the build uses (ReweCard), then restore the
-  // default order the snapshot ships in.
-  function mergeChanges(d, rows) {
-    if (!rows.length) return;
-    const at = new Map(d.cards.map((c, i) => [c.id, i]));
-    const pathAt = new Map(d.paths.map((p, i) => [p.join(SEP), i]));
-    const drop = new Set();
-    for (const row of rows) {
-      const p = !row.gone_at && ReweCard.rowToProduct(row);
-      const card = p && ReweCard.reweCard(p);
-      if (!card || typeof card === 'string') { drop.add(row.shop_id); continue; }
-      if (card.cs.length) {
-        const key = card.cs.join(SEP);
-        if (!pathAt.has(key)) { pathAt.set(key, d.paths.length); d.paths.push(card.cs); }
-        card.c = pathAt.get(key);
-      }
-      delete card.cs;
-      if (at.has(card.id)) d.cards[at.get(card.id)] = card;
-      else { at.set(card.id, d.cards.length); d.cards.push(card); }
-    }
-    if (drop.size) d.cards = d.cards.filter((c) => !drop.has(c.id));
-    d.cards.sort(ReweCard.byScore);
   }
 
   function applyStore(payload) {
     PATHS = payload.paths || [];
     DATA = store === 'rewe' ? (payload.cards || []).filter((c) => !UNBUYABLE.has(c.id)) : payload.cards || [];
+    totalEl.textContent = (payload.cards || []).length.toLocaleString() + ' products';
     const hidden = (payload.cards || []).length - DATA.length;
     if (hidden) blurbEl.insertAdjacentHTML('beforeend', ' Hiding ' + hidden.toLocaleString() + (hidden === 1 ? ' product' : ' products') + ' your market can’t sell.');
     // The first load restores the filters from the URL; a store switch resets them.
@@ -922,4 +854,3 @@ for (const key of Object.keys(STORES) as (keyof typeof STORES)[]) {
 // The pre-/{store} single page; leaving it would ship a stale copy at /index.html.
 await rm(`${SITE_DIR}/index.html`, { force: true });
 console.log(`  mercadona.json: ${mercadonaCards.length} cards`);
-console.log(`  rewe.json:      ${reweCards.length} cards`);

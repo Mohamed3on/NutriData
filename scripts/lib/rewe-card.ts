@@ -1,8 +1,7 @@
-// A REWE product, from its D1 row to the scored card the site renders. Shared by
-// the site build (the full snapshot in rewe.json) and the page itself: the build
-// bundles this into the page, which folds in the rows the extension updated
-// after the snapshot was built (the Worker's /changes), so a collected price
-// shows up on the next page load instead of the next deploy.
+// A REWE product, from its D1 row to the scored card the site renders. The
+// protein-index Worker imports this to build rewe.json live from D1, so a price
+// the extension collects shows on the next page load; the site build uses
+// withPathTable and byScore for Mercadona too, so both stores rank alike.
 import { computeNutriScore, fiberFromEnergy, isBrewed, LOW_SCORE } from '../../src/nutriScore';
 
 // "3.9 g" → 3.9 ; "\N" / "" / null → null
@@ -32,10 +31,9 @@ export type ReweProduct = {
   price: number | null; ppu: number | null; unit: string | null;
   brand: string | null; gtin: string | null;
   nutri: (number | null)[]; // [protein, carbs, sugar, fat, calories, fiber, salt, satFat]
-  updated?: string; // D1 updated_at, 'YYYY-MM-DD HH:MM:SS' UTC
 };
 
-// /collect takes anyone's writes and the page renders them live, so links and
+// /collect takes anyone's writes and rewe.json serves them live, so links and
 // images must point at REWE over https (no javascript: or other hosts).
 const reweUrl = (u: unknown, host: RegExp) =>
   typeof u === 'string' && host.test(u) ? u : '';
@@ -55,7 +53,6 @@ export function rowToProduct(row: Record<string, any>): ReweProduct | null {
     url: reweUrl(row.url, /^https:\/\/(shop|www)\.rewe\.de\//).replace('rewe.de/shop/p/', 'rewe.de/p/'),
     img: reweUrl(row.image_url, /^https:\/\/img\.rewe-static\.de\//),
     cats, price: row.price, ppu: row.price_per_unit, unit: row.unit, brand: row.brand, gtin: row.gtin, nutri,
-    updated: row.updated_at,
   };
 }
 
@@ -155,3 +152,38 @@ export const byScore = (a: Card, b: Card) => {
   if (sa !== sb) return sb - sa;
   return (typeof b.pk === 'number' ? b.pk : -Infinity) - (typeof a.pk === 'number' ? a.pk : -Infinity);
 };
+
+// Each card points at its full category path by index instead of repeating the
+// strings 16k times. That keeps every level of the path available to the site's
+// tree filter and still ships smaller than the old flat cat/sub pair did.
+const PATH_SEP = '\u001f'; // never appears in a category name
+export function withPathTable(cards: Card[]) {
+  const index = new Map<string, number>();
+  const paths: string[][] = [];
+  for (const card of cards) {
+    const segs = (card.cs as string[] | undefined) || [];
+    delete card.cs;
+    if (!segs.length) continue;
+    const key = segs.join(PATH_SEP);
+    let i = index.get(key);
+    if (i === undefined) { i = paths.length; index.set(key, i); paths.push(segs); }
+    card.c = i;
+  }
+  return { paths, cards };
+}
+
+// The REWE store payload ({ paths, cards }, in the default order) from D1 rows.
+export function reweStore(rows: Record<string, any>[]) {
+  const cards: Card[] = [];
+  for (const row of rows) {
+    const p = rowToProduct(row);
+    const card = p && reweCard(p);
+    if (card && typeof card !== 'string') cards.push(card);
+  }
+  return withPathTable(cards.sort(byScore));
+}
+
+// The REWE rows the store is built from (gone_at: the page 404s, delisted).
+export const REWE_SQL =
+  'SELECT shop_id, name, url, image_url, categories, price, price_per_unit, unit, brand, gtin, nutritional_data ' +
+  "FROM product WHERE shop = 'rewe' AND gone_at IS NULL";
