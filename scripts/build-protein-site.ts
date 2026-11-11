@@ -45,7 +45,7 @@ const d1 = Bun.spawn(
   { cwd: `${import.meta.dir}/../site`, stdout: 'pipe', stderr: 'inherit' },
 );
 const d1Out = await new Response(d1.stdout).text();
-if ((await d1.exited) !== 0) throw new Error('wrangler d1 execute failed');
+if ((await d1.exited) !== 0) throw new Error('wrangler d1 execute failed: ' + d1Out); // --json prints errors to stdout
 const reweCount = reweStore(JSON.parse(d1Out.slice(d1Out.indexOf('[')))[0].results).cards.length;
 console.log(`rewe: ${reweCount} cards (built live by the Worker)`);
 

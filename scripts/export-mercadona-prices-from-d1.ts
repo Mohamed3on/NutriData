@@ -26,7 +26,7 @@ const proc = Bun.spawn(
   { cwd: SITE_DIR, stdout: 'pipe', stderr: 'inherit' },
 );
 const stdout = await new Response(proc.stdout).text();
-if ((await proc.exited) !== 0) throw new Error('wrangler d1 execute failed');
+if ((await proc.exited) !== 0) throw new Error('wrangler d1 execute failed: ' + stdout); // --json prints errors to stdout
 
 const parsed = JSON.parse(stdout.slice(stdout.indexOf('[')));
 const rows: { shop_id: string; price: number; updated_at: string }[] = parsed[0].results;
