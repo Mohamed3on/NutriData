@@ -20,7 +20,7 @@ const ENDPOINT = 'https://protein-index.mohamed3on.com/collect';
 const STORE_KEY = 'nd_collected3';
 // The user's REWE market, for the options page's link to the protein index.
 export const MARKET_KEY = 'nd_rewe_market';
-const TTL_MS = 6 * 24 * 60 * 60 * 1000; // re-send a given product at most ~weekly
+const TTL_MS = 6 * 24 * 60 * 60 * 1000; // re-send an unchanged product at most ~weekly
 const MAX_KEYS = 8000;
 const BATCH = 50;        // endpoint cap per request
 const FLUSH_MS = 1500;   // debounce a burst of cards into one request
@@ -90,7 +90,9 @@ export async function maybeCollect(shop: Shop, doc: Document, nutrientInfo: Nutr
       chrome.storage.local.set({ [MARKET_KEY]: payload.market }).catch(() => {});
     }
     const map = await ensureLoaded();
-    const key = `${payload.shop}:${payload.shop_id}`;
+    // The price is part of the key, so a price change is sent right away
+    // instead of waiting out the TTL.
+    const key = `${payload.shop}:${payload.shop_id}:${payload.price}`;
     const now = Date.now();
     if (map[key] && now - map[key] < TTL_MS) return; // sent recently — skip
     map[key] = now; // mark optimistically so a re-render in the same burst doesn't re-queue
