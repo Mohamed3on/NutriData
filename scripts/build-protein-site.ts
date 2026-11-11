@@ -513,7 +513,7 @@ const page = (storeKey: keyof typeof STORES) => {
       '<div class="ratios">' + ratios.join('') + '</div>',
       macros ? '<div class="macros">' + macros + '</div>' : '',
     ].filter(Boolean).join('');
-    return '<a href="' + item.u + '" target="_blank" rel="noopener" class="card-tile"><div class="imgwrap">' + (item.img ? '<img src="' + escHtml(item.img) + '" alt="" loading="lazy" decoding="async">' : '') + '<span class="rank">#' + rank + '</span><span class="score" style="background:' + lerpColor(item.ns, 10, 3) + '">' + fmt1(item.ns) + '</span></div><div class="body">' + body + '</div></a>';
+    return '<a href="' + escHtml(item.u) + '" target="_blank" rel="noopener" class="card-tile"><div class="imgwrap">' + (item.img ? '<img src="' + escHtml(item.img) + '" alt="" loading="lazy" decoding="async">' : '') + '<span class="rank">#' + rank + '</span><span class="score" style="background:' + lerpColor(item.ns, 10, 3) + '">' + fmt1(item.ns) + '</span></div><div class="body">' + body + '</div></a>';
   }
 
   function renderGrid() {

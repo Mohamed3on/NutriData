@@ -35,6 +35,11 @@ export type ReweProduct = {
   updated?: string; // D1 updated_at, 'YYYY-MM-DD HH:MM:SS' UTC
 };
 
+// /collect takes anyone's writes and the page renders them live, so links and
+// images must point at REWE over https (no javascript: or other hosts).
+const reweUrl = (u: unknown, host: RegExp) =>
+  typeof u === 'string' && host.test(u) ? u : '';
+
 // A D1 `product` row → ReweProduct, or null when it has no protein and no calories.
 export function rowToProduct(row: Record<string, any>): ReweProduct | null {
   let n: Record<string, string> = {};
@@ -46,7 +51,9 @@ export function rowToProduct(row: Record<string, any>): ReweProduct | null {
   return {
     // Some seeded urls read shop.rewe.de/shop/p/…, which REWE redirects to a
     // /shop/shop/p/ path the extension doesn't run on — so it never saw them 404.
-    id: row.shop_id, name: row.name || '', url: (row.url || '').replace('rewe.de/shop/p/', 'rewe.de/p/'), img: row.image_url || '',
+    id: row.shop_id, name: row.name || '',
+    url: reweUrl(row.url, /^https:\/\/(shop|www)\.rewe\.de\//).replace('rewe.de/shop/p/', 'rewe.de/p/'),
+    img: reweUrl(row.image_url, /^https:\/\/img\.rewe-static\.de\//),
     cats, price: row.price, ppu: row.price_per_unit, unit: row.unit, brand: row.brand, gtin: row.gtin, nutri,
     updated: row.updated_at,
   };
